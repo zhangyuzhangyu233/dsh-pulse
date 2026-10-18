@@ -1,0 +1,42 @@
+{
+  "name": "dsh-pulse",
+  "version": "0.2.0",
+  "description": "Pulse: a Claude-inspired live status layer for the DeepSeek Harness sidebar - state table, project tabs, live run steps and smooth FLIP transitions, without replacing the native workspace tree.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "sidebar",
+    "session-status",
+    "claude",
+    "dsh-pulse"
+  ],
+  "homepage": "https://github.com/zhangyuzhangyu233/dsh-pulse",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhangyuzhangyu233/dsh-pulse.git"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg"
+  ],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": ["@deepseek-ai/dsh-client-ui-layout"]
+    }
+  }
+}
