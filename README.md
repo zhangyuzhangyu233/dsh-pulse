@@ -28,16 +28,24 @@ Pulse 把**这套状态语言**移植到 DSH：不是替换原生列表，而是
 
 ![Pulse 在 DSH 中的实际效果](docs/screenshots/overview.png)
 
+## 最新更新 · v0.3.0：状态表变成通知中心
+
+- **已完成 = 通知中心**：悬停「已完成」分组行会出现垃圾桶按钮，一键清空全部已完成通知；每条已完成会话悬停时出现 ×，可单独删除这条通知；清空/删除只作用于通知层，**不会删除或归档真实 DSH 会话**，并用 localStorage 持久化；
+- **四种状态常驻 + 默认展开**：需要输入 / 待审查 / 正在工作 / 已完成 不再因为计数为 0 而隐藏，首次加载即全部展开；
+- **悬停图标对齐原生工作区**：分组行的圆点在悬停时变成原生同款实心三角（展开时旋转为倒三角）；项目行的文件夹图标同样在悬停时切换为三角；
+- **列对齐重做**：图标居中于原生文件夹图标列，分组文字与工作区项目标题同列，子项列表从分组标题首字下方开始（文件夹 30px / 标题 52px）；
+- 清空通知后状态面板保持显示（计数归 0），不会整块消失。
+
 ## 它能做什么
 
 ### 🧭 状态总表：叠在「工作区」上方，原生树不动
 
 ```
 状态                                   ⌄
-  › ● 需要输入                       2
-  › ● 正在工作                       1
-  › ● 未读                           3
-  › ● 已完成                        12
+  ▾ ● 需要输入                       2
+  ▾ ● 待审查                         0
+  ▾ ● 正在工作                       1
+  ▾ ● 已完成                        12   ← 悬停出现 🗑 清空按钮
 ────────────────────────────────────
 工作区                                ← 原生列表，完全保留
   ▸ dsh-coderipper
@@ -58,6 +66,15 @@ Pulse 把**这套状态语言**移植到 DSH：不是替换原生列表，而是
 - 会话下方显示**当前执行步骤**：来自 DSH 的 `todo` 投影里 `in_progress` 的条目；没写 todo 时回退到运行中的**子代理名称**，绝不编造；
 - 步骤文字带**白色高光从左往右扫过**，字号/行距与会话行一致（14px / 20px / 32px 行高）；
 - 点会话直接打开，点项目行收起该项目。
+
+### 🔔 已完成：像一个通知中心
+
+已完成分组被当作通知列表处理：
+
+- 悬停分组行 → 右侧出现垃圾桶按钮，**清空全部已完成通知**；
+- 悬停单条已完成会话 → 行尾出现 ×，**只删除这一条**；
+- 计数实时跟随通知数量，刷新后保持已清空状态；
+- 只影响 Pulse 的通知列表，DSH 的真实会话保持不变；会话重新进入工作/待审查时会重新出现。
 
 ### 🎞 丝滑的状态切换
 
@@ -92,12 +109,12 @@ install_bundle  target = <本仓库绝对路径>
 **方式 B（手工登记）**：
 
 1. 把本仓库克隆到任意位置；
-2. 在 profile 的 `node_modules` 下建软链指向仓库根目录（例如 `<profile>/node_modules/dsh-coderipper`）；
+2. 在 profile 的 `node_modules` 下建软链指向仓库根目录（例如 `<profile>/node_modules/dsh-pulse`）；
 3. 在 profile 的 `cordis.yml` 插件列表里加一条：
 
 ```yaml
-- id: dsh-coderipper
-  name: dsh-coderipper
+- id: dsh-pulse
+  name: dsh-pulse
 ```
 
 4. 重启 DSH，在插件面板确认 `Pulse · 状态栏脉搏` 已启用。
@@ -128,7 +145,8 @@ install_bundle  target = <本仓库绝对路径>
 
 ## 已知限制与路线图
 
-- `待审查（Ready for review）` 分组已预留：DSH 当前没有对应信号，计数为 0 时整组隐藏；
+- `待审查（Ready for review）` 分组已预留：DSH 当前没有对应信号时计数为 0，但状态行会保留显示；
+- 已完成通知的「清空 / 删除」只作用于 Pulse 的通知层，不会删除、归档或修改真实会话；
 - 执行步骤依赖会话的 `todo` 投影，未写清单的长任务只显示转圈（+ 子代理名兜底）；
 - 路线图：hover 卡片（最近活动/工作区）、右键菜单扩展（移动到工作区/分叉）、状态片段筛选。
 
@@ -138,4 +156,4 @@ install_bundle  target = <本仓库绝对路径>
 
 ---
 
-**English** — Pulse is a Claude-inspired status layer for the DeepSeek Harness sidebar: a live state table (Needs input / Working / Unread / Completed) stacked above the untouched native workspace tree, expandable down to project tabs, sessions and their current run steps, with native-matching spinners, project folder icons, and FLIP state transitions. Zero dependencies, MIT licensed. Visual language and motion parameters are reverse-engineered for parity; no Anthropic or DeepSeek code/assets are included, and there is no affiliation.
+**English** — Pulse is a Claude-inspired status layer for the DeepSeek Harness sidebar: a live state table (Needs input / Working / Unread / Completed) stacked above the untouched native workspace tree, expandable down to project tabs, sessions and their current run steps, with native-matching spinners, project folder icons, and FLIP state transitions. The completed group works as a notification center: clear-all and per-item dismiss, persisted locally, without touching the real sessions. Zero dependencies, MIT licensed. Visual language and motion parameters are reverse-engineered for parity; no Anthropic or DeepSeek code/assets are included, and there is no affiliation.

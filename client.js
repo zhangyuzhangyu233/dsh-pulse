@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({
     const STRIP_ID = 'pulse-status-strip';
     const STYLE_ID = 'pulse-status-strip-style';
     const PREF_KEY = 'dsh.pulse.enabled';
-    const EXPAND_KEY = 'dsh.pulse.expanded';
+    const EXPAND_KEY = 'dsh.pulse.expanded-v2';
     const COLLAPSE_KEY = 'dsh.pulse.collapsed';
     const NOTIFY_KEY = 'dsh.pulse.notify';
 
@@ -42,6 +42,8 @@ window.__ModuleLoader__.load({
         notifyCompleted: '刚刚完成',
         notifyMore: '还有 {n} 个',
         notifyClose: '关闭通知',
+        clearAll: '清空已完成',
+        dismissOne: '删除这条通知',
         notifySettings: '状态摘要通知',
         notifySettingsHint: '会话开始运行、等待操作或刚完成时，弹出摘要通知',
         simSettings: '模拟状态数据（演示）',
@@ -69,6 +71,8 @@ window.__ModuleLoader__.load({
         notifyCompleted: 'Just finished',
         notifyMore: '{n} more',
         notifyClose: 'Dismiss notification',
+        clearAll: 'Clear completed',
+        dismissOne: 'Dismiss this notification',
         notifySettings: 'Status notifications',
         notifySettingsHint: 'A summary pops up when a session starts, needs input, or finishes',
         simSettings: 'Simulate status data (demo)',
@@ -127,6 +131,34 @@ window.__ModuleLoader__.load({
       } catch (error) { }
     }
 
+    // Notification-center state: completed sessions the user dismissed.
+    const DISMISSED_KEY = 'dsh.pulse.dismissed';
+    let dismissed = readDismissed();
+    function readDismissed() {
+      try {
+        const raw = window.localStorage.getItem(DISMISSED_KEY);
+        if (raw === null) return new Set();
+        const parsed = JSON.parse(raw);
+        return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+      } catch (error) { return new Set(); }
+    }
+    function saveDismissed() {
+      try {
+        window.localStorage.setItem(DISMISSED_KEY, JSON.stringify(Array.from(dismissed)));
+      } catch (error) { }
+    }
+    function clearCompleted() {
+      for (const session of last.groups.completed) dismissed.add(String(session.id));
+      saveDismissed();
+      renderStrip();
+    }
+    function dismissOne(id) {
+      if (!id) return;
+      dismissed.add(String(id));
+      saveDismissed();
+      renderStrip();
+    }
+
     // Runtime error channel: a crashing slot entry is deactivated by the slot
     // runtime, so failures must be caught locally and surfaced in Settings.
     let lastError = '';
@@ -152,7 +184,7 @@ window.__ModuleLoader__.load({
     function readExpanded() {
       try {
         const raw = window.localStorage.getItem(EXPAND_KEY);
-        if (raw === null) return new Set();
+        if (raw === null) return new Set(['blocked', 'review', 'working', 'completed']);
         const parsed = JSON.parse(raw);
         return new Set(Array.isArray(parsed) ? parsed : []);
       } catch (error) { return new Set(); }
@@ -466,6 +498,29 @@ window.__ModuleLoader__.load({
       return '<span class="csb-dot" style="background:' + color + '"></span>';
     }
 
+    // Native trash glyph for the "clear completed" notification action.
+    function trashSvg() {
+      return '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">'
+        + '<path d="M2.6 4.6h10.8M6.4 4.6V3.4c0-.4.3-.8.8-.8h1.6c.5 0 .8.4.8.8v1.2'
+        + 'M4.1 4.6l.6 8.1c0 .5.4.9.9.9h4.8c.5 0 .9-.4.9-.9l.6-8.1" '
+        + 'stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+
+    // Native × glyph for dismissing a single notification.
+    function closeSvg() {
+      return '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true">'
+        + '<path d="M4.6 4.6l6.8 6.8M11.4 4.6l-6.8 6.8" stroke="currentColor" '
+        + 'stroke-width="1.3" stroke-linecap="round"/></svg>';
+    }
+
+    // Same filled triangle as the native workspace project row
+    // (IconTriangleRightFillRegular, 14px); rotated 90deg when expanded.
+    function triangleSvg(open) {
+      return '<svg class="csb-arrow' + (open ? ' csb-arrow-open' : '') + '" viewBox="0 0 16 16" '
+        + 'width="14" height="14" aria-hidden="true" fill="none">'
+        + '<path d="M5.5 4.5C5.5 4.40714 5.52586 4.31612 5.57467 4.23713C5.62349 4.15815 5.69334 4.09431 5.77639 4.05279C5.85945 4.01126 5.95242 3.99368 6.0449 4.00202C6.13738 4.01036 6.22572 4.04429 6.3 4.1L10.967 7.6C11.0291 7.64657 11.0795 7.70697 11.1142 7.77639C11.1489 7.84582 11.167 7.92238 11.167 8C11.167 8.07762 11.1489 8.15418 11.1142 8.22361C11.0795 8.29303 11.0291 8.35343 10.967 8.4L6.3 11.9C6.22572 11.9557 6.13738 11.9896 6.0449 11.998C5.95242 12.0063 5.85945 11.9887 5.77639 11.9472C5.69334 11.9057 5.62349 11.8419 5.57467 11.7629C5.52586 11.6839 5.5 11.5929 5.5 11.5V4.5Z" fill="currentColor"/></svg>';
+    }
+
     // Exact replica of the shipped StateDot "ongoing" spinner: 14px SVG ring,
     // 1.5s rotation plus the breathing dash, so a running row in the status
     // table matches the native workspace list pixel for pixel.
@@ -507,12 +562,18 @@ window.__ModuleLoader__.load({
      * todo items) on indented lines below the title. Every row also names the
      * project it belongs to in a small line under the title.
      */
-    function sessionRowHtml(session, working) {
+    function sessionRowHtml(session, working, groupKey, t) {
       const steps = working && Array.isArray(session.steps) ? session.steps : null;
+      const dismiss = groupKey === 'completed'
+        ? '<span class="csb-session-del" role="button" tabindex="0" '
+          + 'data-csb-dismiss="' + escapeHtml(session.id) + '" title="' + t.dismissOne + '">'
+          + closeSvg() + '</span>'
+        : '';
       let html = '<button type="button" class="csb-session' + (working ? ' csb-session-working' : '') + '" '
         + 'data-csb-session="' + escapeHtml(session.id) + '" title="' + escapeHtml(session.title) + '">'
         + (working ? spinnerHtml() : '')
         + '<span class="csb-session-title">' + escapeHtml(session.title) + '</span>'
+        + dismiss
         + '</button>';
       if (steps !== null && steps.length > 0) {
         html += '<div class="csb-steps">';
@@ -528,7 +589,7 @@ window.__ModuleLoader__.load({
      * Sessions are grouped under their project, and the project line reuses the
      * native list's project tab: caret + folder icon + title on a 34px row.
      */
-    function sessionsBlockHtml(sessions, working, t) {
+    function sessionsBlockHtml(sessions, working, t, groupKey) {
       const order = [];
       const buckets = new Map();
       for (const session of sessions) {
@@ -542,14 +603,15 @@ window.__ModuleLoader__.load({
         const isCollapsed = collapsedProjects.has(name);
         html += '<div class="csb-proj">'
           + '<button type="button" class="csb-proj-head" data-csb-project="' + escapeHtml(name) + '">'
-          + '<span class="csb-proj-caret' + (isCollapsed ? '' : ' csb-open') + '">' + chevronSvg(!isCollapsed) + '</span>'
+          + '<span class="csb-proj-icon">'
           + '<span class="csb-proj-folder">' + folderSvg(!isCollapsed) + '</span>'
+          + '<span class="csb-proj-tri">' + triangleSvg(!isCollapsed) + '</span></span>'
           + '<span class="csb-proj-name">' + escapeHtml(name) + '</span>'
           + '</button>';
         if (!isCollapsed) {
           html += '<div class="csb-proj-sessions">';
           for (const session of buckets.get(key)) {
-            html += sessionRowHtml(session, working);
+            html += sessionRowHtml(session, working, groupKey, t);
           }
           html += '</div>';
         }
@@ -669,11 +731,14 @@ window.__ModuleLoader__.load({
       const strip = document.getElementById(STRIP_ID);
       if (strip === null) return;
       const t = strings();
-      const c = last.counts;
-      const total = c.blocked + c.working + c.completed;
-      if (total === 0) {
-        strip.style.display = 'none';
-        return;
+      // The panel behaves like a notification center: completed rows the user
+      // dismissed are filtered out, and their count goes with them.
+      const groups = {};
+      for (const key of GROUPS) {
+        const list = last.groups[key] || [];
+        groups[key] = key === 'completed'
+          ? list.filter((session) => !dismissed.has(String(session.id)))
+          : list;
       }
       // Decide visibility in the same frame as the paint: the sidebar can be in
       // rail mode, and a one-frame "block" would flash the table open.
@@ -690,23 +755,31 @@ window.__ModuleLoader__.load({
       };
       const labels = { blocked: t.blocked, review: t.review, working: t.working, completed: t.completed };
 
+      const c = { blocked: groups.blocked.length, review: groups.review.length, working: groups.working.length, completed: groups.completed.length };
+      c.justCompleted = groups.completed.filter((session) => session.unread).length;
+
       let body = '';
       for (const key of GROUPS) {
         const n = c[key];
-        if (key === 'review' && n === 0) continue; // no review signal yet
         const isOpen = expanded.has(key);
-        const sessions = last.groups[key];
+        const sessions = groups[key];
         const canOpen = sessions.length > 0;
+        const clearAll = key === 'completed' && n > 0
+          ? '<span class="csb-group-clear" role="button" tabindex="0" data-csb-clear="completed" '
+            + 'title="' + t.clearAll + '">' + trashSvg() + '</span>'
+          : '';
         body += '<div class="csb-group">'
           + '<button type="button" class="csb-group-head" data-csb-toggle="' + key + '" '
           + (canOpen ? '' : 'disabled ') + 'title="' + (isOpen ? t.collapse : t.expand) + '">'
-          + '<span class="csb-group-caret' + (isOpen ? ' csb-open' : '') + '">' + chevronSvg(isOpen) + '</span>'
-          + dotHtml(colors[key])
+          + '<span class="csb-group-icon">' + dotHtml(colors[key])
+          + '<span class="csb-tri">' + triangleSvg(isOpen) + '</span></span>'
           + '<span class="csb-group-label">' + labels[key] + '</span>'
           + '<span class="csb-group-count">' + n + '</span>'
+          + clearAll
           + '</button>';
         if (isOpen && sessions.length > 0) {
-          body += '<div class="csb-sessions">' + sessionsBlockHtml(sessions, key === 'working', t) + '</div>';
+          body += '<div class="csb-sessions">'
+            + sessionsBlockHtml(sessions, key === 'working', t, key) + '</div>';
         }
         body += '</div>';
       }
@@ -716,10 +789,10 @@ window.__ModuleLoader__.load({
         // Collapsed view: running / waiting-for-input / just-finished keep
         // their session names underneath, with the same metrics as the list.
         // "Still finishing" sessions are not listed as finished yet.
-        const justFinished = last.groups.completed.filter((session) => session.unread);
+        const justFinished = groups.completed.filter((session) => session.unread);
         const summaryRows = [
-          { key: 'working', label: t.working, color: colors.working, sessions: last.groups.working },
-          { key: 'blocked', label: t.blocked, color: colors.blocked, sessions: last.groups.blocked },
+          { key: 'working', label: t.working, color: colors.working, sessions: groups.working },
+          { key: 'blocked', label: t.blocked, color: colors.blocked, sessions: groups.blocked },
           { key: 'completed', label: t.justCompleted, color: 'var(--dsw-alias-brand-primary,#5b8def)', sessions: justFinished },
         ].filter((row) => row.sessions.length > 0);
         if (summaryRows.length > 0) {
@@ -727,11 +800,12 @@ window.__ModuleLoader__.load({
             + summaryRows.map((row) => {
               let html = '<button type="button" class="csb-summary-row" '
                 + 'data-csb-expand="' + row.key + '" title="' + t.expandAll + '">'
-                + dotHtml(row.color)
+                + '<span class="csb-summary-icon">' + dotHtml(row.color)
+                + '<span class="csb-tri">' + triangleSvg(false) + '</span></span>'
                 + '<span class="csb-group-label">' + row.label + '</span>'
                 + '<span class="csb-group-count">' + row.sessions.length + '</span>'
                 + '</button>';
-              html += '<div class="csb-sessions">' + sessionsBlockHtml(row.sessions, row.key === 'working', t) + '</div>';
+              html += '<div class="csb-sessions">' + sessionsBlockHtml(row.sessions, row.key === 'working', t, row.key) + '</div>';
               return html;
             }).join('')
             + '</div>';
@@ -786,6 +860,16 @@ window.__ModuleLoader__.load({
     }
 
     function onStripClick(event) {
+      const clear = event.target.closest('[data-csb-clear]');
+      if (clear !== null) {
+        if (clear.getAttribute('data-csb-clear') === 'completed') clearCompleted();
+        return;
+      }
+      const dismiss = event.target.closest('[data-csb-dismiss]');
+      if (dismiss !== null) {
+        dismissOne(dismiss.getAttribute('data-csb-dismiss'));
+        return;
+      }
       if (event.target.closest('[data-csb-collapse]') !== null) {
         collapsed = !collapsed;
         writeBool(COLLAPSE_KEY, collapsed);
@@ -1087,46 +1171,56 @@ ${STRIP_SELECTOR} .csb-head-count{display:inline-flex;align-items:center;gap:5px
 ${STRIP_SELECTOR} .csb-head-caret{display:inline-flex;align-items:center;justify-content:center;width:14px;height:20px;flex:none;color:var(--dsw-alias-label-caption,rgba(127,127,127,.9))}
 ${STRIP_SELECTOR} .csb-head-caret svg{transition:transform .15s ease}
 ${STRIP_SELECTOR} .csb-group{display:flex;flex-direction:column}
-${STRIP_SELECTOR} .csb-group-head{display:flex;align-items:center;gap:6px;width:100%;height:32px;padding:0 8px 0 4px;box-sizing:border-box;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;text-align:left;cursor:pointer}
+${STRIP_SELECTOR} .csb-group-head{display:flex;align-items:center;gap:6px;width:100%;height:32px;padding:0 8px 0 8px;box-sizing:border-box;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;text-align:left;cursor:pointer}
 ${STRIP_SELECTOR} .csb-group-head:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1))}
 ${STRIP_SELECTOR} .csb-group-head:disabled{cursor:default;opacity:.55}
-${STRIP_SELECTOR} .csb-summary-row{display:flex;align-items:center;gap:8px;width:100%;height:32px;padding:0 8px 0 4px;box-sizing:border-box;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:14px;line-height:20px;text-align:left;cursor:pointer}
+${STRIP_SELECTOR} .csb-summary-row{display:flex;align-items:center;gap:6px;width:100%;height:32px;padding:0 8px 0 8px;box-sizing:border-box;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:14px;line-height:20px;text-align:left;cursor:pointer}
 ${STRIP_SELECTOR} .csb-summary-row:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1))}
 ${STRIP_SELECTOR} .csb-group-head:disabled:hover{background:transparent}
-${STRIP_SELECTOR} .csb-group-caret{display:inline-flex;align-items:center;justify-content:center;width:14px;height:20px;flex:none;color:var(--dsw-alias-label-caption,rgba(127,127,127,.9));transition:transform .15s ease;transform:rotate(0deg)}
-${STRIP_SELECTOR} .csb-group-caret svg{transition:transform .15s ease}
-${STRIP_SELECTOR} .csb-dot{width:8px;height:8px;border-radius:50%;flex:none}
+${STRIP_SELECTOR} .csb-group-icon{display:inline-flex;align-items:center;justify-content:center;width:16px;height:20px;flex:none;color:var(--dsw-alias-label-caption,rgba(127,127,127,.9))}
+${STRIP_SELECTOR} .csb-group-head:hover .csb-group-icon .csb-dot{display:none}
+${STRIP_SELECTOR} .csb-group-head:hover .csb-group-icon .csb-tri{display:inline-flex}
+${STRIP_SELECTOR} .csb-group-head:disabled:hover .csb-group-icon .csb-dot{display:block}
+${STRIP_SELECTOR} .csb-group-head:disabled:hover .csb-group-icon .csb-tri{display:none}
+${STRIP_SELECTOR} .csb-dot{display:block;width:8px;height:8px;border-radius:50%;flex:none}
+${STRIP_SELECTOR} .csb-tri{display:none;align-items:center;justify-content:center;flex:none;color:var(--dsw-alias-label-caption,rgba(127,127,127,.9))}
+${STRIP_SELECTOR} .csb-arrow{transition:transform .15s ease;transform:rotate(0deg)}
+${STRIP_SELECTOR} .csb-arrow-open{transform:rotate(90deg)}
 ${STRIP_SELECTOR} .csb-group-label{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 ${STRIP_SELECTOR} .csb-group-count{flex:none;color:var(--dsw-alias-label-tertiary);font-size:14px;line-height:20px}
+${STRIP_SELECTOR} .csb-summary-icon{display:inline-flex;align-items:center;justify-content:center;width:16px;height:20px;flex:none;overflow:visible;color:var(--dsw-alias-label-caption,rgba(127,127,127,.9))}
+${STRIP_SELECTOR} .csb-summary-row:hover .csb-summary-icon .csb-dot{display:none}
+${STRIP_SELECTOR} .csb-summary-row:hover .csb-summary-icon .csb-tri{display:inline-flex}
 ${STRIP_SELECTOR} .csb-body>*+*{margin-top:2px}
 ${STRIP_SELECTOR} .csb-sessions{display:flex;flex-direction:column}
 ${STRIP_SELECTOR} .csb-sessions>*+*{margin-top:2px}
-/* Titles line up with the group label above (4 + 14 caret + 6 + 8 dot + 6). */
-${STRIP_SELECTOR} .csb-session{display:flex;align-items:center;gap:6px;height:32px;padding:0 8px 0 38px;box-sizing:border-box;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary,#e8e8ea);font:inherit;font-size:14px;line-height:20px;text-align:left;cursor:pointer;width:100%}
-${STRIP_SELECTOR} .csb-session-working{padding-left:18px}
-${STRIP_SELECTOR} .csb-body-collapsed .csb-session{padding-left:20px}
+/* Nested list starts under the first character of the group label. */
+${STRIP_SELECTOR} .csb-session{display:flex;align-items:center;gap:6px;height:32px;padding:0 8px 0 52px;box-sizing:border-box;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary,#e8e8ea);font:inherit;font-size:14px;line-height:20px;text-align:left;cursor:pointer;width:100%}
+${STRIP_SELECTOR} .csb-session-working{padding-left:30px;gap:8px}
+${STRIP_SELECTOR} .csb-body-collapsed .csb-session{padding-left:52px}
 /* Project tab above its sessions — same metrics as the native project row. */
 ${STRIP_SELECTOR} .csb-proj{display:flex;flex-direction:column}
 ${STRIP_SELECTOR} .csb-proj+.csb-proj{margin-top:2px}
-${STRIP_SELECTOR} .csb-proj-head{display:flex;align-items:center;gap:6px;height:34px;padding:0 8px 0 38px;box-sizing:border-box;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary,#e8e8ea);font:inherit;font-size:14px;line-height:20px;text-align:left;cursor:pointer;width:100%}
+${STRIP_SELECTOR} .csb-proj-head{display:flex;align-items:center;gap:6px;height:34px;padding:0 8px 0 30px;box-sizing:border-box;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary,#e8e8ea);font:inherit;font-size:14px;line-height:20px;text-align:left;cursor:pointer;width:100%}
 ${STRIP_SELECTOR} .csb-proj-head:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1))}
-${STRIP_SELECTOR} .csb-proj-caret{display:inline-flex;align-items:center;justify-content:center;width:14px;height:20px;flex:none;color:var(--dsw-alias-label-caption,rgba(127,127,127,.9))}
-${STRIP_SELECTOR} .csb-proj-caret svg{transition:transform .15s ease;transform:rotate(0deg)}
-${STRIP_SELECTOR} .csb-proj-caret.csb-open svg{transform:rotate(90deg)}
+${STRIP_SELECTOR} .csb-proj-icon{display:inline-flex;align-items:center;justify-content:center;width:16px;height:20px;flex:none;color:var(--dsw-alias-label-tertiary)}
+${STRIP_SELECTOR} .csb-proj-head:hover .csb-proj-icon .csb-proj-folder{display:none}
+${STRIP_SELECTOR} .csb-proj-head:hover .csb-proj-icon .csb-proj-tri{display:inline-flex}
+${STRIP_SELECTOR} .csb-proj-tri{display:none;align-items:center;justify-content:center;flex:none;color:var(--dsw-alias-label-caption,rgba(127,127,127,.9))}
 ${STRIP_SELECTOR} .csb-proj-folder{display:inline-flex;align-items:center;flex:none;color:var(--dsw-alias-label-tertiary)}
 ${STRIP_SELECTOR} .csb-proj-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 ${STRIP_SELECTOR} .csb-proj-sessions{display:flex;flex-direction:column}
 ${STRIP_SELECTOR} .csb-proj-sessions>*+*{margin-top:2px}
-/* Session rows align their leading icon with the project folder icon and their
-   titles with the project title (folder 58..74, title 80). */
-${STRIP_SELECTOR} .csb-proj-sessions .csb-session{padding-left:80px}
-${STRIP_SELECTOR} .csb-proj-sessions .csb-session-working{padding-left:58px;gap:8px}
-${STRIP_SELECTOR} .csb-proj-sessions .csb-steps{margin-left:58px;padding-left:21px}
-${STRIP_SELECTOR} .csb-body-collapsed .csb-proj-head{height:28px;padding-left:20px}
-${STRIP_SELECTOR} .csb-body-collapsed .csb-proj-sessions .csb-session{padding-left:62px}
-${STRIP_SELECTOR} .csb-body-collapsed .csb-proj-sessions .csb-session-working{padding-left:40px;gap:8px}
-${STRIP_SELECTOR} .csb-body-collapsed .csb-proj-sessions .csb-steps{margin-left:40px;padding-left:21px}
-${STRIP_SELECTOR} .csb-body-collapsed .csb-session-working{padding-left:0}
+/* Child list starts under the group label's first character: folder 30..46,
+   titles at 52 (project and session titles share the column). */
+${STRIP_SELECTOR} .csb-proj-sessions .csb-session{padding-left:52px}
+${STRIP_SELECTOR} .csb-proj-sessions .csb-session-working{padding-left:30px;gap:8px}
+${STRIP_SELECTOR} .csb-proj-sessions .csb-steps{margin-left:30px;padding-left:22px}
+${STRIP_SELECTOR} .csb-body-collapsed .csb-proj-head{height:28px;padding-left:30px}
+${STRIP_SELECTOR} .csb-body-collapsed .csb-proj-sessions .csb-session{padding-left:52px}
+${STRIP_SELECTOR} .csb-body-collapsed .csb-proj-sessions .csb-session-working{padding-left:30px;gap:8px}
+${STRIP_SELECTOR} .csb-body-collapsed .csb-proj-sessions .csb-steps{margin-left:30px;padding-left:22px}
+${STRIP_SELECTOR} .csb-body-collapsed .csb-session-working{padding-left:30px;gap:8px}
 ${STRIP_SELECTOR} .csb-session:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1))}
 ${STRIP_SELECTOR} .csb-spin{flex:none;color:var(--dsw-alias-label-tertiary)}
 ${STRIP_SELECTOR} .csb-spin-motion{transform-origin:center;animation:csb-spin-rotate 1.5s linear infinite}
@@ -1141,8 +1235,14 @@ ${STRIP_SELECTOR} .csb-step{display:flex;align-items:center;height:32px;box-sizi
 @media (prefers-reduced-motion:reduce){${STRIP_SELECTOR} .csb-spin-motion,${STRIP_SELECTOR} .csb-spin-arc{animation:none}}
 @keyframes csb-spin-rotate{to{transform:rotate(360deg)}}
 @keyframes csb-spin-dash{0%{stroke-dasharray:12 150;stroke-dashoffset:0}50%{stroke-dasharray:24 150;stroke-dashoffset:-6}to{stroke-dasharray:12 150;stroke-dashoffset:0}}
-${STRIP_SELECTOR} .csb-session-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-${STRIP_SELECTOR} .csb-session-empty{padding-left:26px;color:var(--dsw-alias-label-tertiary);cursor:default}
+${STRIP_SELECTOR} .csb-session-title{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+${STRIP_SELECTOR} .csb-group-clear{display:none;align-items:center;justify-content:center;width:20px;height:20px;padding:0;margin-left:2px;flex:none;border:0;border-radius:var(--dsw-radius-xs,4px);background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer}
+${STRIP_SELECTOR} .csb-group-head:hover .csb-group-clear{display:inline-flex}
+${STRIP_SELECTOR} .csb-group-clear:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1))}
+${STRIP_SELECTOR} .csb-session-del{display:none;align-items:center;justify-content:center;width:20px;height:20px;padding:0;margin-left:2px;flex:none;border:0;border-radius:var(--dsw-radius-xs,4px);background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer}
+${STRIP_SELECTOR} .csb-session:hover .csb-session-del{display:inline-flex}
+${STRIP_SELECTOR} .csb-session-del:hover{color:var(--dsw-alias-state-error-primary,#e06);background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1))}
+${STRIP_SELECTOR} .csb-session-empty{padding-left:52px;color:var(--dsw-alias-label-tertiary);cursor:default}
 ${STRIP_SELECTOR} .csb-session-empty:hover{background:transparent}
 .csb-settings{display:flex;flex-direction:column;gap:10px;padding:10px 0;font-size:13px}
 .csb-setting-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
