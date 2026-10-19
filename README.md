@@ -28,7 +28,15 @@ Pulse 把**这套状态语言**移植到 DSH：不是替换原生列表，而是
 
 ![Pulse 在 DSH 中的实际效果](docs/screenshots/overview.png)
 
-## 最新更新 · v0.3.0：状态表变成通知中心
+## 最新更新 · v0.4.0：折叠摘要 + 完整通知中心
+
+- **折叠态 = Claude 式摘要**：只显示有内容的行（需要输入 / 待审查 / 正在工作 / 未读），0 计数自动隐藏；标题右侧显示未读总数；
+- **摘要行可就地展开**：点任意摘要行，直接在该行下方展开项目 → 会话 → 运行步骤，再点收起；展开状态持久化；三角随展开/收起旋转；
+- **展开态 = 完整通知中心**：四组常驻并全部展开；已完成保留清空 / 单条删除；折叠态标题旁的铃铛图标可直接打开通知中心；
+- **未读语义统一**：已完成里未读项排最前、带蓝点加粗；「未读 N」在两个状态里是同一批会话；
+- **两种清理动作分开**：「全部标为已读」只清未读标记、保留历史；「清空已完成」只清已读历史，未读默认保留。
+
+## v0.3.0：状态表变成通知中心
 
 - **已完成 = 通知中心**：悬停「已完成」分组行会出现垃圾桶按钮，一键清空全部已完成通知；每条已完成会话悬停时出现 ×，可单独删除这条通知；清空/删除只作用于通知层，**不会删除或归档真实 DSH 会话**，并用 localStorage 持久化；
 - **四种状态常驻 + 默认展开**：需要输入 / 待审查 / 正在工作 / 已完成 不再因为计数为 0 而隐藏，首次加载即全部展开；
@@ -41,11 +49,12 @@ Pulse 把**这套状态语言**移植到 DSH：不是替换原生列表，而是
 ### 🧭 状态总表：叠在「工作区」上方，原生树不动
 
 ```
-状态                                   ⌄
-  ▾ ● 需要输入                       2
-  ▾ ● 待审查                         0
-  ▾ ● 正在工作                       1
-  ▾ ● 已完成                        12   ← 悬停出现 🗑 清空按钮
+状态                          ● 3  🔔  ⌄     ← 折叠态：Claude 式摘要
+  ▸ ● 需要输入                     2
+  ▾ ● 正在工作                     1
+      📁 dsh-coderipple
+         Claude 动态壁纸复刻…  ◌ 实时步骤
+  ▸ ● 未读                         3
 ────────────────────────────────────
 工作区                                ← 原生列表，完全保留
   ▸ dsh-coderipper
@@ -67,14 +76,16 @@ Pulse 把**这套状态语言**移植到 DSH：不是替换原生列表，而是
 - 步骤文字带**白色高光从左往右扫过**，字号/行距与会话行一致（14px / 20px / 32px 行高）；
 - 点会话直接打开，点项目行收起该项目。
 
-### 🔔 已完成：像一个通知中心
+### 🔔 两态设计：折叠摘要 ⇄ 展开通知中心
 
-已完成分组被当作通知列表处理：
+**折叠态（默认紧凑视图）**：Claude 式摘要，只列有内容的分类，标题右侧是未读总数和通知中心入口（铃铛）。每行可以就地展开，查看该分类下的项目、会话与运行步骤。
 
-- 悬停分组行 → 右侧出现垃圾桶按钮，**清空全部已完成通知**；
-- 悬停单条已完成会话 → 行尾出现 ×，**只删除这一条**；
-- 计数实时跟随通知数量，刷新后保持已清空状态；
-- 只影响 Pulse 的通知列表，DSH 的真实会话保持不变；会话重新进入工作/待审查时会重新出现。
+**展开态（通知中心）**：四组常驻并全部展开，已完成分组按未读优先排序：
+
+- 未读项带蓝点加粗，排在前面；打开会话后 DSH 原生清掉未读，自动移入历史；
+- 悬停「已完成」分组行：**✓ 全部标为已读**（保留历史）与 **🗑 清空已完成**（只清已读历史，未读保留）；
+- 悬停单条已完成会话：行尾 × 单独删除这条通知；
+- 计数实时跟随，状态写入 localStorage；只影响 Pulse 的通知层，不删除或归档真实 DSH 会话。
 
 ### 🎞 丝滑的状态切换
 
@@ -146,7 +157,8 @@ install_bundle  target = <本仓库绝对路径>
 ## 已知限制与路线图
 
 - `待审查（Ready for review）` 分组已预留：DSH 当前没有对应信号时计数为 0，但状态行会保留显示；
-- 已完成通知的「清空 / 删除」只作用于 Pulse 的通知层，不会删除、归档或修改真实会话；
+- 已完成通知的「清空 / 删除」只作用于 Pulse 的通知层，不会删除、归档或修改真实会话；「全部标为已读」是 Pulse 的本地已读标记，不改动 DSH 的 `completionUnread`；
+- 「未读」的真实来源是 DSH 的 `completionUnread`（内存态），DSH 重启后未读会重置；
 - 执行步骤依赖会话的 `todo` 投影，未写清单的长任务只显示转圈（+ 子代理名兜底）；
 - 路线图：hover 卡片（最近活动/工作区）、右键菜单扩展（移动到工作区/分叉）、状态片段筛选。
 
@@ -156,4 +168,4 @@ install_bundle  target = <本仓库绝对路径>
 
 ---
 
-**English** — Pulse is a Claude-inspired status layer for the DeepSeek Harness sidebar: a live state table (Needs input / Working / Unread / Completed) stacked above the untouched native workspace tree, expandable down to project tabs, sessions and their current run steps, with native-matching spinners, project folder icons, and FLIP state transitions. The completed group works as a notification center: clear-all and per-item dismiss, persisted locally, without touching the real sessions. Zero dependencies, MIT licensed. Visual language and motion parameters are reverse-engineered for parity; no Anthropic or DeepSeek code/assets are included, and there is no affiliation.
+**English** — Pulse is a Claude-inspired status layer for the DeepSeek Harness sidebar: a live state table (Needs input / Working / Unread / Completed) stacked above the untouched native workspace tree, expandable down to project tabs, sessions and their current run steps, with native-matching spinners, project folder icons, and FLIP state transitions. Collapsed, it shows a Claude-style digest whose rows expand in place to projects, sessions and live steps; expanded, it becomes a full notification center (unread-first ordering, mark-all-read, clear history, per-item dismiss), persisted locally without touching the real sessions. Zero dependencies, MIT licensed. Visual language and motion parameters are reverse-engineered for parity; no Anthropic or DeepSeek code/assets are included, and there is no affiliation.

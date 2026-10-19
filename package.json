@@ -1,7 +1,7 @@
 {
   "name": "dsh-pulse",
-  "version": "0.3.0",
-  "description": "Pulse: a Claude-inspired live status layer for the DeepSeek Harness sidebar - state table, project tabs, live run steps, a notification-center completed list (clear / dismiss), native hover triangles and smooth FLIP transitions, without replacing the native workspace tree.",
+  "version": "0.4.0",
+  "description": "Pulse: a Claude-inspired live status layer for the DeepSeek Harness sidebar - a compact Claude-style digest when collapsed, a full notification center when expanded (unread ordering, mark-all-read, clear history, per-item dismiss), live run steps, native hover triangles and FLIP transitions, without replacing the native workspace tree.",
   "type": "module",
   "license": "MIT",
   "keywords": [

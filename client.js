@@ -44,6 +44,10 @@ window.__ModuleLoader__.load({
         notifyClose: '关闭通知',
         clearAll: '清空已完成',
         dismissOne: '删除这条通知',
+        markAllRead: '全部标为已读',
+        notificationCenter: '打开通知中心',
+        expandGroup: '展开这一组',
+        collapseGroup: '收起这一组',
         notifySettings: '状态摘要通知',
         notifySettingsHint: '会话开始运行、等待操作或刚完成时，弹出摘要通知',
         simSettings: '模拟状态数据（演示）',
@@ -73,6 +77,10 @@ window.__ModuleLoader__.load({
         notifyClose: 'Dismiss notification',
         clearAll: 'Clear completed',
         dismissOne: 'Dismiss this notification',
+        markAllRead: 'Mark all as read',
+        notificationCenter: 'Open notification center',
+        expandGroup: 'Expand this group',
+        collapseGroup: 'Collapse this group',
         notifySettings: 'Status notifications',
         notifySettingsHint: 'A summary pops up when a session starts, needs input, or finishes',
         simSettings: 'Simulate status data (demo)',
@@ -148,7 +156,12 @@ window.__ModuleLoader__.load({
       } catch (error) { }
     }
     function clearCompleted() {
-      for (const session of last.groups.completed) dismissed.add(String(session.id));
+      // Clearing history keeps unread notifications: only read completions are
+      // removed. Mark all as read first to clear everything.
+      for (const session of last.groups.completed) {
+        if (isUnread(session)) continue;
+        dismissed.add(String(session.id));
+      }
       saveDismissed();
       renderStrip();
     }
@@ -156,6 +169,42 @@ window.__ModuleLoader__.load({
       if (!id) return;
       dismissed.add(String(id));
       saveDismissed();
+      renderStrip();
+    }
+
+    // Unread handling: opening a session marks it read in DSH itself; the
+    // bulk action mirrors that for the notification layer so unread badges and
+    // the collapsed digest stay in sync.
+    const READ_KEY = 'dsh.pulse.read';
+    let readIds = readIdSet(READ_KEY);
+    const SUMMARY_OPEN_KEY = 'dsh.pulse.summary-open';
+    let summaryOpen = readIdSet(SUMMARY_OPEN_KEY);
+    function readIdSet(key) {
+      try {
+        const raw = window.localStorage.getItem(key);
+        if (raw === null) return new Set();
+        const parsed = JSON.parse(raw);
+        return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+      } catch (error) { return new Set(); }
+    }
+    function saveIdSet(key, set) {
+      try { window.localStorage.setItem(key, JSON.stringify(Array.from(set))); } catch (error) { }
+    }
+    function isUnread(session) {
+      return !!(session && session.unread) && !readIds.has(String(session.id));
+    }
+    function markAllRead() {
+      for (const session of last.groups.completed) {
+        if (session.unread) readIds.add(String(session.id));
+      }
+      saveIdSet(READ_KEY, readIds);
+      renderStrip();
+    }
+    function toggleSummaryGroup(key) {
+      if (!key) return;
+      if (summaryOpen.has(key)) summaryOpen.delete(key);
+      else summaryOpen.add(key);
+      saveIdSet(SUMMARY_OPEN_KEY, summaryOpen);
       renderStrip();
     }
 
@@ -521,6 +570,21 @@ window.__ModuleLoader__.load({
         + '<path d="M5.5 4.5C5.5 4.40714 5.52586 4.31612 5.57467 4.23713C5.62349 4.15815 5.69334 4.09431 5.77639 4.05279C5.85945 4.01126 5.95242 3.99368 6.0449 4.00202C6.13738 4.01036 6.22572 4.04429 6.3 4.1L10.967 7.6C11.0291 7.64657 11.0795 7.70697 11.1142 7.77639C11.1489 7.84582 11.167 7.92238 11.167 8C11.167 8.07762 11.1489 8.15418 11.1142 8.22361C11.0795 8.29303 11.0291 8.35343 10.967 8.4L6.3 11.9C6.22572 11.9557 6.13738 11.9896 6.0449 11.998C5.95242 12.0063 5.85945 11.9887 5.77639 11.9472C5.69334 11.9057 5.62349 11.8419 5.57467 11.7629C5.52586 11.6839 5.5 11.5929 5.5 11.5V4.5Z" fill="currentColor"/></svg>';
     }
 
+    function checkSvg() {
+      return '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">'
+        + '<path d="M3.4 8.6l3 3 6.2-7.2" stroke="currentColor" stroke-width="1.5" '
+        + 'stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+
+    function bellSvg() {
+      return '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">'
+        + '<path d="M8 2.4c-2 0-3.4 1.7-3.4 3.7v2.2L3.3 10.6c-.2.4.1.8.5.8h8.4c.4 0 .7-.4.5-.8'
+        + 'L11.4 8.3V6.1c0-2-1.4-3.7-3.4-3.7Z" stroke="currentColor" stroke-width="1.2" '
+        + 'stroke-linejoin="round"/>'
+        + '<path d="M6.6 12.4a1.5 1.5 0 0 0 2.8 0" stroke="currentColor" stroke-width="1.2" '
+        + 'stroke-linecap="round"/></svg>';
+    }
+
     // Exact replica of the shipped StateDot "ongoing" spinner: 14px SVG ring,
     // 1.5s rotation plus the breathing dash, so a running row in the status
     // table matches the native workspace list pixel for pixel.
@@ -564,14 +628,16 @@ window.__ModuleLoader__.load({
      */
     function sessionRowHtml(session, working, groupKey, t) {
       const steps = working && Array.isArray(session.steps) ? session.steps : null;
+      const unread = !working && isUnread(session);
       const dismiss = groupKey === 'completed'
         ? '<span class="csb-session-del" role="button" tabindex="0" '
           + 'data-csb-dismiss="' + escapeHtml(session.id) + '" title="' + t.dismissOne + '">'
           + closeSvg() + '</span>'
         : '';
-      let html = '<button type="button" class="csb-session' + (working ? ' csb-session-working' : '') + '" '
+      let html = '<button type="button" class="csb-session'
+        + (working ? ' csb-session-working' : '') + (unread ? ' csb-session-unread' : '') + '" '
         + 'data-csb-session="' + escapeHtml(session.id) + '" title="' + escapeHtml(session.title) + '">'
-        + (working ? spinnerHtml() : '')
+        + (working ? spinnerHtml() : (unread ? '<span class="csb-unread-dot"></span>' : ''))
         + '<span class="csb-session-title">' + escapeHtml(session.title) + '</span>'
         + dismiss
         + '</button>';
@@ -737,7 +803,10 @@ window.__ModuleLoader__.load({
       for (const key of GROUPS) {
         const list = last.groups[key] || [];
         groups[key] = key === 'completed'
-          ? list.filter((session) => !dismissed.has(String(session.id)))
+          ? list
+            .filter((session) => !dismissed.has(String(session.id)))
+            .sort((a, b) => (isUnread(b) ? 1 : 0) - (isUnread(a) ? 1 : 0)
+              || (Number(b.updatedAt) - Number(a.updatedAt)) || (a.id < b.id ? -1 : 1))
           : list;
       }
       // Decide visibility in the same frame as the paint: the sidebar can be in
@@ -756,7 +825,7 @@ window.__ModuleLoader__.load({
       const labels = { blocked: t.blocked, review: t.review, working: t.working, completed: t.completed };
 
       const c = { blocked: groups.blocked.length, review: groups.review.length, working: groups.working.length, completed: groups.completed.length };
-      c.justCompleted = groups.completed.filter((session) => session.unread).length;
+      c.justCompleted = groups.completed.filter((session) => isUnread(session)).length;
 
       let body = '';
       for (const key of GROUPS) {
@@ -764,6 +833,10 @@ window.__ModuleLoader__.load({
         const isOpen = expanded.has(key);
         const sessions = groups[key];
         const canOpen = sessions.length > 0;
+        const readAll = key === 'completed' && c.justCompleted > 0
+          ? '<span class="csb-group-readall" role="button" tabindex="0" data-csb-readall="completed" '
+            + 'title="' + t.markAllRead + '">' + checkSvg() + '</span>'
+          : '';
         const clearAll = key === 'completed' && n > 0
           ? '<span class="csb-group-clear" role="button" tabindex="0" data-csb-clear="completed" '
             + 'title="' + t.clearAll + '">' + trashSvg() + '</span>'
@@ -775,6 +848,7 @@ window.__ModuleLoader__.load({
           + '<span class="csb-tri">' + triangleSvg(isOpen) + '</span></span>'
           + '<span class="csb-group-label">' + labels[key] + '</span>'
           + '<span class="csb-group-count">' + n + '</span>'
+          + readAll
           + clearAll
           + '</button>';
         if (isOpen && sessions.length > 0) {
@@ -786,43 +860,53 @@ window.__ModuleLoader__.load({
 
       let summaryBody = '';
       if (collapsed) {
-        // Collapsed view: running / waiting-for-input / just-finished keep
-        // their session names underneath, with the same metrics as the list.
-        // "Still finishing" sessions are not listed as finished yet.
-        const justFinished = groups.completed.filter((session) => session.unread);
+        // Collapsed view: a compact Claude-style digest. Each row can expand in
+        // place to show that group's projects and session progress.
+        const unreadRows = groups.completed.filter((session) => isUnread(session));
         const summaryRows = [
-          { key: 'working', label: t.working, color: colors.working, sessions: groups.working },
-          { key: 'blocked', label: t.blocked, color: colors.blocked, sessions: groups.blocked },
-          { key: 'completed', label: t.justCompleted, color: 'var(--dsw-alias-brand-primary,#5b8def)', sessions: justFinished },
-        ].filter((row) => row.sessions.length > 0);
+          { key: 'blocked', label: t.blocked, color: colors.blocked, list: groups.blocked },
+          { key: 'review', label: t.review, color: colors.review, list: groups.review },
+          { key: 'working', label: t.working, color: colors.working, list: groups.working },
+          { key: 'unread', label: t.justCompleted, color: 'var(--dsw-alias-brand-primary,#5b8def)', list: unreadRows },
+        ].filter((row) => row.list.length > 0);
         if (summaryRows.length > 0) {
           summaryBody = '<div class="csb-body csb-body-collapsed">'
             + summaryRows.map((row) => {
-              let html = '<button type="button" class="csb-summary-row" '
-                + 'data-csb-expand="' + row.key + '" title="' + t.expandAll + '">'
+              const isOpen = summaryOpen.has(row.key);
+              let html = '<div class="csb-summary-group">'
+                + '<button type="button" class="csb-summary-row' + (isOpen ? ' csb-summary-open' : '') + '" '
+                + 'data-csb-expand="' + row.key + '" title="' + (isOpen ? t.collapseGroup : t.expandGroup) + '">'
                 + '<span class="csb-summary-icon">' + dotHtml(row.color)
-                + '<span class="csb-tri">' + triangleSvg(false) + '</span></span>'
+                + '<span class="csb-tri">' + triangleSvg(isOpen) + '</span></span>'
                 + '<span class="csb-group-label">' + row.label + '</span>'
-                + '<span class="csb-group-count">' + row.sessions.length + '</span>'
+                + '<span class="csb-group-count">' + row.list.length + '</span>'
                 + '</button>';
-              html += '<div class="csb-sessions">' + sessionsBlockHtml(row.sessions, row.key === 'working', t, row.key) + '</div>';
-              return html;
+              if (isOpen) {
+                html += '<div class="csb-sessions">'
+                  + sessionsBlockHtml(row.list, row.key === 'working', t, row.key === 'unread' ? 'completed' : row.key)
+                  + '</div>';
+              }
+              return html + '</div>';
             }).join('')
             + '</div>';
         }
       }
 
-      // Collapsed header keeps the finished total on the right (the screenshot
-      // baseline); the live categories render as rows underneath.
-      const headSummary = collapsed && c.completed > 0
+      // Collapsed header keeps the unread total on the right.
+      const unreadTotal = groups.completed.filter((session) => isUnread(session)).length;
+      const headSummary = collapsed && unreadTotal > 0
         ? '<span class="csb-head-summary"><span class="csb-head-count">'
-          + dotHtml(colors.completed) + '<span>' + c.completed + '</span></span></span>'
+          + dotHtml('var(--dsw-alias-brand-primary,#5b8def)') + '<span>' + unreadTotal + '</span></span></span>'
         : '';
 
       const html = '<button type="button" class="csb-head-row" data-csb-collapse="1" '
-        + 'title="' + (collapsed ? t.expandAll : t.collapseAll) + '">'
+        + 'title="' + (collapsed ? t.notificationCenter : t.collapseAll) + '">'
         + '<span class="csb-head-title">' + t.title + '</span>'
         + headSummary
+        + (collapsed
+          ? '<span class="csb-head-nc" role="button" tabindex="0" data-csb-center="1" '
+            + 'title="' + t.notificationCenter + '">' + bellSvg() + '</span>'
+          : '')
         + '<span class="csb-head-caret' + (collapsed ? ' csb-collapsed' : '') + '">' + chevronSvg(!collapsed) + '</span>'
         + '</button>'
         + (collapsed ? summaryBody : '<div class="csb-body">' + body + '</div>');
@@ -860,6 +944,20 @@ window.__ModuleLoader__.load({
     }
 
     function onStripClick(event) {
+      const center = event.target.closest('[data-csb-center]');
+      if (center !== null) {
+        collapsed = false;
+        writeBool(COLLAPSE_KEY, collapsed);
+        for (const groupKey of GROUPS) expanded.add(groupKey);
+        saveExpanded();
+        renderStrip();
+        return;
+      }
+      const readAll = event.target.closest('[data-csb-readall]');
+      if (readAll !== null) {
+        markAllRead();
+        return;
+      }
       const clear = event.target.closest('[data-csb-clear]');
       if (clear !== null) {
         if (clear.getAttribute('data-csb-clear') === 'completed') clearCompleted();
@@ -878,15 +976,9 @@ window.__ModuleLoader__.load({
       }
       const expandRow = event.target.closest('[data-csb-expand]');
       if (expandRow !== null) {
-        // Clicking a collapsed summary row opens the table on that group.
-        collapsed = false;
-        writeBool(COLLAPSE_KEY, collapsed);
-        const key = expandRow.getAttribute('data-csb-expand');
-        if (key) {
-          expanded.add(key);
-          saveExpanded();
-        }
-        renderStrip();
+        // In the collapsed digest a summary row expands its own projects and
+        // sessions in place, without leaving the compact view.
+        toggleSummaryGroup(expandRow.getAttribute('data-csb-expand'));
         return;
       }
       const toggle = event.target.closest('[data-csb-toggle]');
@@ -1191,6 +1283,14 @@ ${STRIP_SELECTOR} .csb-group-count{flex:none;color:var(--dsw-alias-label-tertiar
 ${STRIP_SELECTOR} .csb-summary-icon{display:inline-flex;align-items:center;justify-content:center;width:16px;height:20px;flex:none;overflow:visible;color:var(--dsw-alias-label-caption,rgba(127,127,127,.9))}
 ${STRIP_SELECTOR} .csb-summary-row:hover .csb-summary-icon .csb-dot{display:none}
 ${STRIP_SELECTOR} .csb-summary-row:hover .csb-summary-icon .csb-tri{display:inline-flex}
+${STRIP_SELECTOR} .csb-summary-row.csb-summary-open .csb-summary-icon .csb-dot{display:none}
+${STRIP_SELECTOR} .csb-summary-row.csb-summary-open .csb-summary-icon .csb-tri{display:inline-flex}
+${STRIP_SELECTOR} .csb-summary-group{display:flex;flex-direction:column}
+${STRIP_SELECTOR} .csb-summary-group+.csb-summary-group{margin-top:2px}
+${STRIP_SELECTOR} .csb-head-nc{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;flex:none;border-radius:var(--dsw-radius-xs,4px);color:var(--dsw-alias-label-tertiary);cursor:pointer}
+${STRIP_SELECTOR} .csb-head-nc:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1))}
+${STRIP_SELECTOR} .csb-unread-dot{width:6px;height:6px;border-radius:50%;flex:none;background:var(--dsw-alias-brand-primary,#5b8def)}
+${STRIP_SELECTOR} .csb-session-unread .csb-session-title{font-weight:600}
 ${STRIP_SELECTOR} .csb-body>*+*{margin-top:2px}
 ${STRIP_SELECTOR} .csb-sessions{display:flex;flex-direction:column}
 ${STRIP_SELECTOR} .csb-sessions>*+*{margin-top:2px}
@@ -1236,6 +1336,9 @@ ${STRIP_SELECTOR} .csb-step{display:flex;align-items:center;height:32px;box-sizi
 @keyframes csb-spin-rotate{to{transform:rotate(360deg)}}
 @keyframes csb-spin-dash{0%{stroke-dasharray:12 150;stroke-dashoffset:0}50%{stroke-dasharray:24 150;stroke-dashoffset:-6}to{stroke-dasharray:12 150;stroke-dashoffset:0}}
 ${STRIP_SELECTOR} .csb-session-title{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+${STRIP_SELECTOR} .csb-group-readall{display:none;align-items:center;justify-content:center;width:20px;height:20px;padding:0;margin-left:2px;flex:none;border:0;border-radius:var(--dsw-radius-xs,4px);background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer}
+${STRIP_SELECTOR} .csb-group-head:hover .csb-group-readall{display:inline-flex}
+${STRIP_SELECTOR} .csb-group-readall:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1))}
 ${STRIP_SELECTOR} .csb-group-clear{display:none;align-items:center;justify-content:center;width:20px;height:20px;padding:0;margin-left:2px;flex:none;border:0;border-radius:var(--dsw-radius-xs,4px);background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer}
 ${STRIP_SELECTOR} .csb-group-head:hover .csb-group-clear{display:inline-flex}
 ${STRIP_SELECTOR} .csb-group-clear:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1))}
