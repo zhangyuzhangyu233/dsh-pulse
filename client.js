@@ -30,6 +30,7 @@ window.__ModuleLoader__.load({
         completed: '已完成',
         untitled: '未命名会话',
         ungrouped: '未分组',
+        subagent: '子智能体',
         expand: '展开列表',
         collapse: '收起列表',
         expandAll: '展开状态列表',
@@ -63,6 +64,7 @@ window.__ModuleLoader__.load({
         completed: 'Completed',
         untitled: 'Untitled session',
         ungrouped: 'Ungrouped',
+        subagent: 'Sub-agents',
         expand: 'Expand list',
         collapse: 'Collapse list',
         expandAll: 'Expand status list',
@@ -357,6 +359,9 @@ window.__ModuleLoader__.load({
     }
 
     const GROUPS = ['blocked', 'review', 'working', 'completed'];
+    // Sessions spawned as subagents have no workspace entry; group them under a
+    // dedicated "Sub-agents" caption instead of "Ungrouped".
+    const SUBAGENT_PROJECT = '\u0000subagent';
     let last = {
       counts: { blocked: 0, review: 0, working: 0, completed: 0, justCompleted: 0 },
       groups: { blocked: [], review: [], working: [], completed: [] },
@@ -475,11 +480,15 @@ window.__ModuleLoader__.load({
         counts[bucket] += 1;
         if (bucket === 'completed' && unread) counts.justCompleted += 1;
         const title = displayTitle(session, t.untitled);
+        // DSH marks subagent sessions with origin === 'subagent'; forks keep a
+        // parentId but stay workspace sessions, so origin is the reliable flag.
+        const subagent = session.origin === 'subagent';
+        const project = projectOf.get(String(id)) || null;
         const entry = {
           id,
           title,
           unread,
-          project: projectOf.get(String(id)) || null,
+          project: project || (subagent ? SUBAGENT_PROJECT : null),
           updatedAt: Number(session.updatedAt) || 0,
           steps: null,
         };
@@ -663,9 +672,14 @@ window.__ModuleLoader__.load({
         if (!buckets.has(key)) { buckets.set(key, []); order.push(key); }
         buckets.get(key).push(session);
       }
+      const subagentIndex = order.indexOf(SUBAGENT_PROJECT);
+      if (subagentIndex >= 0) {
+        order.splice(subagentIndex, 1);
+        order.push(SUBAGENT_PROJECT);
+      }
       let html = '';
       for (const key of order) {
-        const name = key || t.ungrouped;
+        const name = key === SUBAGENT_PROJECT ? t.subagent : (key || t.ungrouped);
         const isCollapsed = collapsedProjects.has(name);
         html += '<div class="csb-proj">'
           + '<button type="button" class="csb-proj-head" data-csb-project="' + escapeHtml(name) + '">'
