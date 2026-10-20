@@ -1,5 +1,5 @@
 /**
- * Pulse - a Claude-inspired live status layer for the Harness sidebar.
+ * Status Motion - a Claude-inspired live status layer for the Harness sidebar.
  *
  * Sits above the workspace list and summarises sessions by run state
  * (Needs input / Working / Completed) across every workspace. Each state row is
@@ -10,7 +10,7 @@
  * padding) so the table lines up with the "工作区" heading.
  */
 window.__ModuleLoader__.load({
-  id: 'dsh-pulse',
+  id: 'dsh-status-motion',
   factory(require) {
     const React = require('react');
 
@@ -54,7 +54,7 @@ window.__ModuleLoader__.load({
         notifySettingsHint: '会话开始运行、等待操作或刚完成时，弹出摘要通知',
         simSettings: '模拟状态数据（演示）',
         simSettingsHint: '用脚本数据循环演示：分组展开、运行中转圈与执行步骤、未读状态',
-        settingsTitle: 'Pulse 状态表',
+        settingsTitle: 'Status Motion 状态表',
         settingsHint: '在工作区列表上方显示：需要输入 / 待审查 / 正在工作 / 已完成，可展开会话列表',
       },
       en: {
@@ -89,7 +89,7 @@ window.__ModuleLoader__.load({
         notifySettingsHint: 'A summary pops up when a session starts, needs input, or finishes',
         simSettings: 'Simulate status data (demo)',
         simSettingsHint: 'Loops scripted data: grouped expansion, running spinner and steps, unread state',
-        settingsTitle: 'Pulse status table',
+        settingsTitle: 'Status Motion status table',
         settingsHint: 'Needs input / Ready for review / Working / Completed above the workspace list; each row expands to its sessions',
       },
     };

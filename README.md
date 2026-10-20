@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/banner-pulse.png" alt="Pulse — a Claude-inspired status layer for the DeepSeek Harness sidebar" width="100%" />
+<img src="docs/banner-status-motion.png" alt="Status Motion — a Claude-inspired status layer for the DeepSeek Harness sidebar" width="100%" />
 
-# Pulse
+# Status Motion
 
 **给 DeepSeek Harness 侧边栏注入 Claude 的状态流。**
 
@@ -11,7 +11,7 @@
 > 名字取自「侧边栏的脉搏」：会话状态像心率一样实时起伏，你随时知道系统还在跳。
 
 [![MIT](https://img.shields.io/badge/license-MIT-3fbf7f)](LICENSE)
-[![DSH](https://img.shields.io/badge/DeepSeek%20Harness-plugin-5b8def)](https://github.com/zhangyuzhangyu233/dsh-pulse)
+[![DSH](https://img.shields.io/badge/DeepSeek%20Harness-plugin-5b8def)](https://github.com/zhangyuzhangyu233/dsh-status-motion)
 [![no deps](https://img.shields.io/badge/dependencies-0-e2a33c)](#)
 
 </div>
@@ -24,9 +24,9 @@ DSH 的侧边栏擅长回答「我的会话放在哪个项目」，
 但它不太回答「**现在**发生了什么」——哪个在等我批准、哪个在跑、哪个刚跑完我还没看。
 
 Claude 的桌面端把这件事做得很好：agent 列表按状态分组、运行中的会话带实时动静、完成的会话留一个未读标记。
-Pulse 把**这套状态语言**移植到 DSH：不是替换原生列表，而是在原生列表上方加一层实时状态表，让「项目结构」和「任务状态」同时可见。
+Status Motion 把**这套状态语言**移植到 DSH：不是替换原生列表，而是在原生列表上方加一层实时状态表，让「项目结构」和「任务状态」同时可见。
 
-![Pulse 在 DSH 中的实际效果](docs/screenshots/overview.png)
+![Status Motion 在 DSH 中的实际效果](docs/screenshots/overview.png)
 
 ## v0.5.0：清空动效 + 手风琴折叠
 
@@ -96,7 +96,7 @@ DSH 里由子智能体（subagent）创建的会话没有工作区归属，之�
 - 未读项带蓝点加粗，排在前面；打开会话后 DSH 原生清掉未读，自动移入历史；
 - 悬停「已完成」分组行：**✓ 全部标为已读**（保留历史）与 **🗑 清空已完成**（只清已读历史，未读保留）；
 - 悬停单条已完成会话：行尾 × 单独删除这条通知；
-- 计数实时跟随，状态写入 localStorage；只影响 Pulse 的通知层，不删除或归档真实 DSH 会话。
+- 计数实时跟随，状态写入 localStorage；只影响 Status Motion 的通知层，不删除或归档真实 DSH 会话。
 
 ### 🎞 丝滑的状态切换
 
@@ -131,15 +131,15 @@ install_bundle  target = <本仓库绝对路径>
 **方式 B（手工登记）**：
 
 1. 把本仓库克隆到任意位置；
-2. 在 profile 的 `node_modules` 下建软链指向仓库根目录（例如 `<profile>/node_modules/dsh-pulse`）；
+2. 在 profile 的 `node_modules` 下建软链指向仓库根目录（例如 `<profile>/node_modules/dsh-status-motion`）；
 3. 在 profile 的 `cordis.yml` 插件列表里加一条：
 
 ```yaml
-- id: dsh-pulse
-  name: dsh-pulse
+- id: dsh-status-motion
+  name: dsh-status-motion
 ```
 
-4. 重启 DSH，在插件面板确认 `Pulse · 状态栏脉搏` 已启用。
+4. 重启 DSH，在插件面板确认 `Status Motion · 状态栏动效` 已启用。
 
 安装后：设置 → 通用 → 打开「Claude 状态表」。想先看看效果，再打开「模拟状态数据（演示）」。
 
@@ -156,7 +156,7 @@ install_bundle  target = <本仓库绝对路径>
 
 | 路径 | 内容 |
 |---|---|
-| `package.json` / `client.js` / `index.js` | Pulse 插件本体（零依赖） |
+| `package.json` / `client.js` / `index.js` | Status Motion 插件本体（零依赖） |
 | `locale/` | 中文 / English 界面文案 |
 | `cordis.patch.yml` | Cordis 插件登记 |
 | `docs/` | 宣传横幅与效果截图 |
@@ -168,7 +168,7 @@ install_bundle  target = <本仓库绝对路径>
 ## 已知限制与路线图
 
 - `待审查（Ready for review）` 分组已预留：DSH 当前没有对应信号时计数为 0，但状态行会保留显示；
-- 已完成通知的「清空 / 删除」只作用于 Pulse 的通知层，不会删除、归档或修改真实会话；「全部标为已读」是 Pulse 的本地已读标记，不改动 DSH 的 `completionUnread`；
+- 已完成通知的「清空 / 删除」只作用于 Status Motion 的通知层，不会删除、归档或修改真实会话；「全部标为已读」是 Status Motion 的本地已读标记，不改动 DSH 的 `completionUnread`；
 - 「未读」的真实来源是 DSH 的 `completionUnread`（内存态），DSH 重启后未读会重置；
 - 执行步骤依赖会话的 `todo` 投影，未写清单的长任务只显示转圈（+ 子代理名兜底）；
 - 路线图：hover 卡片（最近活动/工作区）、右键菜单扩展（移动到工作区/分叉）、状态片段筛选。
@@ -179,4 +179,4 @@ install_bundle  target = <本仓库绝对路径>
 
 ---
 
-**English** — Pulse is a Claude-inspired status layer for the DeepSeek Harness sidebar: a live state table (Needs input / Working / Unread / Completed) stacked above the untouched native workspace tree, expandable down to project tabs, sessions and their current run steps, with native-matching spinners, project folder icons, and FLIP state transitions. Collapsed, it shows a Claude-style digest whose rows expand in place to projects, sessions and live steps; expanded, it becomes a full notification center (unread-first ordering, mark-all-read, clear history, per-item dismiss), persisted locally without touching the real sessions. Zero dependencies, MIT licensed. Visual language and motion parameters are reverse-engineered for parity; no Anthropic or DeepSeek code/assets are included, and there is no affiliation.
+**English** — Status Motion is a Claude-inspired status layer for the DeepSeek Harness sidebar: a live state table (Needs input / Working / Unread / Completed) stacked above the untouched native workspace tree, expandable down to project tabs, sessions and their current run steps, with native-matching spinners, project folder icons, and FLIP state transitions. Collapsed, it shows a Claude-style digest whose rows expand in place to projects, sessions and live steps; expanded, it becomes a full notification center (unread-first ordering, mark-all-read, clear history, per-item dismiss), persisted locally without touching the real sessions. Zero dependencies, MIT licensed. Visual language and motion parameters are reverse-engineered for parity; no Anthropic or DeepSeek code/assets are included, and there is no affiliation.

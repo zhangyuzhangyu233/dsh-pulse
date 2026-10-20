@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Pulse - sidebar status layer",
+    "title": "Status Motion - sidebar status layer",
     "description": "A live status pulse layer above the native workspace tree: Needs input / Working / Unread / Completed, grouped by project and expandable down to the run steps. The workspace tree itself is left untouched."
   }
 }
