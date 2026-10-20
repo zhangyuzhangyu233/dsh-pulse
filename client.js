@@ -44,6 +44,7 @@ window.__ModuleLoader__.load({
         notifyMore: '还有 {n} 个',
         notifyClose: '关闭通知',
         clearAll: '清空已完成',
+        clearProject: '清空此项目已完成',
         dismissOne: '删除这条通知',
         markAllRead: '全部标为已读',
         notificationCenter: '打开通知中心',
@@ -78,6 +79,7 @@ window.__ModuleLoader__.load({
         notifyMore: '{n} more',
         notifyClose: 'Dismiss notification',
         clearAll: 'Clear completed',
+        clearProject: 'Clear completed in this project',
         dismissOne: 'Dismiss this notification',
         markAllRead: 'Mark all as read',
         notificationCenter: 'Open notification center',
@@ -174,6 +176,87 @@ window.__ModuleLoader__.load({
       renderStrip();
     }
 
+    /*
+     * Clear-completed motion: rows slide right and fade out in reading order,
+     * and a project row goes last, after all of its sessions. Unread completed
+     * sessions are kept (same rule as the plain clear), so a project only
+     * animates away when nothing unread would be left behind.
+     */
+    const CLEAR_STAGGER_MS = 60;
+    const CLEAR_DURATION_MS = 300;
+    let clearAnimating = false;
+
+    function completedGroupContainer() {
+      const head = document.querySelector('#' + STRIP_ID + ' .csb-group-head[data-csb-toggle="completed"]');
+      return head === null ? null : head.closest('.csb-group');
+    }
+
+    function animateCompletedClear(projectName) {
+      if (clearAnimating) return;
+      const group = completedGroupContainer();
+      if (group === null) return;
+      const unread = new Set(
+        (last && last.groups && last.groups.completed ? last.groups.completed : [])
+          .filter((session) => isUnread(session))
+          .map((session) => String(session.id)),
+      );
+      // Clearing everything reads bottom-to-top; clearing a single project
+      // keeps its own top-to-bottom order.
+      const blocks = Array.from(group.querySelectorAll('.csb-proj'));
+      const orderedBlocks = projectName === null ? blocks.slice().reverse() : blocks;
+      const jobs = [];
+      const ids = [];
+      let cursor = 0;
+      for (const block of orderedBlocks) {
+        const head = block.querySelector('[data-csb-project]');
+        const name = head === null ? '' : head.getAttribute('data-csb-project');
+        if (projectName !== null && name !== projectName) continue;
+        const allRows = Array.from(block.querySelectorAll('[data-csb-session]'));
+        const rows = projectName === null ? allRows.slice().reverse() : allRows;
+        const removable = rows.filter((row) => !unread.has(row.getAttribute('data-csb-session')));
+        if (removable.length === 0) continue;
+        for (const row of removable) {
+          jobs.push({ el: row, delay: cursor });
+          ids.push(row.getAttribute('data-csb-session'));
+          cursor += CLEAR_STAGGER_MS;
+        }
+        if (removable.length === rows.length) {
+          jobs.push({ el: block, delay: cursor });
+          cursor += CLEAR_STAGGER_MS;
+        }
+      }
+      if (jobs.length === 0) return;
+      const finish = function () {
+        clearAnimating = false;
+        try { group.style.pointerEvents = ''; } catch (error) { }
+        for (const id of ids) if (id) dismissed.add(String(id));
+        saveDismissed();
+        renderStrip();
+      };
+      if (reduceMotion()) { finish(); return; }
+      clearAnimating = true;
+      try { group.style.pointerEvents = 'none'; } catch (error) { }
+      let lastDelay = 0;
+      for (const job of jobs) {
+        lastDelay = Math.max(lastDelay, job.delay);
+        try {
+          job.el.animate(
+            [
+              { opacity: 1, transform: 'translateX(0)' },
+              { opacity: 0, transform: 'translateX(96px)' },
+            ],
+            {
+              duration: CLEAR_DURATION_MS,
+              delay: job.delay,
+              easing: 'cubic-bezier(.3,.7,.4,1)',
+              fill: 'forwards',
+            },
+          );
+        } catch (error) { }
+      }
+      window.setTimeout(finish, lastDelay + CLEAR_DURATION_MS + 40);
+    }
+
     // Unread handling: opening a session marks it read in DSH itself; the
     // bulk action mirrors that for the notification layer so unread badges and
     // the collapsed digest stay in sync.
@@ -228,7 +311,7 @@ window.__ModuleLoader__.load({
     function reportError(error) {
       const text = String((error && error.stack) || error || 'unknown error');
       setLastError(text.slice(0, 600));
-      try { console.error('[dsh-pulse]', error); } catch (e) { }
+      try { console.error('[claude-sidebar]', error); } catch (e) { }
     }
 
     let expanded = readExpanded();
@@ -313,7 +396,7 @@ window.__ModuleLoader__.load({
         for (let i = 0; i < 13; i += 1) base.completed.push(make('sim-done-' + i, '已完成会话 ' + (i + 1)));
         base.completed.push(make('sim-done-new', '蔡徐坤篮球字符动画讨论', null, true));
       } else if (simPhase === 3) {
-        base.review.push(make('sim-review-1', '重构 Pulse 状态表'));
+        base.review.push(make('sim-review-1', '重构 claude-sidebar 状态表'));
         for (let i = 0; i < 20; i += 1) base.completed.push(make('sim-done-' + i, '已完成会话 ' + (i + 1), null, i < 3));
       } else {
         base.blocked.push(make('sim-blocked-3', '需要批准：写入工作区设置'));
@@ -322,7 +405,7 @@ window.__ModuleLoader__.load({
       }
 
       // Demo data also carries project captions so the caption row is visible.
-      const projectNames = ['dsh-pulse', 'CHNMedical', 'Ur-Style_DeepSeek_Ver'];
+      const projectNames = ['dsh-claudelike', 'CHNMedical', 'Ur-Style_DeepSeek_Ver'];
       let projectSeq = 0;
       for (const key of GROUPS) {
         for (const entry of base[key]) {
@@ -687,6 +770,11 @@ window.__ModuleLoader__.load({
           + '<span class="csb-proj-folder">' + folderSvg(!isCollapsed) + '</span>'
           + '<span class="csb-proj-tri">' + triangleSvg(!isCollapsed) + '</span></span>'
           + '<span class="csb-proj-name">' + escapeHtml(name) + '</span>'
+          + (groupKey === 'completed'
+            ? '<span class="csb-proj-clear" role="button" tabindex="0" '
+              + 'data-csb-clearproj="' + escapeHtml(name) + '" title="' + t.clearProject + '">'
+              + trashSvg() + '</span>'
+            : '')
           + '</button>';
         if (!isCollapsed) {
           html += '<div class="csb-proj-sessions">';
@@ -734,11 +822,9 @@ window.__ModuleLoader__.load({
       const strip = document.getElementById(STRIP_ID);
       if (strip === null) return;
       let animated = false;
-      const seen = new Set();
       for (const row of strip.querySelectorAll('[data-csb-session]')) {
         const id = row.getAttribute('data-csb-session');
         if (!id) continue;
-        seen.add(id);
         const prev = before.get(id);
         const rect = row.getBoundingClientRect();
         if (prev === undefined) {
@@ -762,26 +848,6 @@ window.__ModuleLoader__.load({
           animated = true;
         } catch (error) { }
       }
-      // Rows that vanished (their bucket collapsed) fade out from where they were.
-      for (const id of before.keys()) {
-        if (seen.has(id)) continue;
-        const prev = before.get(id);
-        try {
-          const ghost = document.createElement('div');
-          ghost.className = 'csb-ghost';
-          ghost.setAttribute('aria-hidden', 'true');
-          ghost.style.cssText = 'position:fixed;left:' + prev.rect.left + 'px;top:' + prev.rect.top
-            + 'px;width:' + prev.rect.width + 'px;margin:0;padding:0;pointer-events:none;z-index:60;';
-          ghost.innerHTML = prev.html;
-          document.body.appendChild(ghost);
-          const anim = ghost.animate(
-            [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-4px)' }],
-            { duration: 180, easing: 'ease-out', fill: 'forwards' },
-          );
-          anim.onfinish = () => ghost.remove();
-          animated = true;
-        } catch (error) { }
-      }
       if (animated) transitionUntil = performance.now() + 260;
     }
 
@@ -794,6 +860,9 @@ window.__ModuleLoader__.load({
      * the first transition and look like a flash.
      */
     function renderStrip() {
+      // Never rebuild the panel mid clear-animation, or the sliding rows would
+      // vanish under the cursor; finish() re-renders right after.
+      if (clearAnimating || accordionAnimating) return;
       if (renderScheduled) return;
       renderScheduled = true;
       const flush = () => {
@@ -957,7 +1026,230 @@ window.__ModuleLoader__.load({
       }[ch]));
     }
 
+    /*
+     * Press-and-drag to the right on a completed session row dismisses it; on
+     * a completed project row it clears that project's completed sessions.
+     * A short drag springs back, so vertical scrolling / normal clicks are
+     * untouched.
+     */
+    const DRAG_START_PX = 6;
+    const DRAG_DELETE_RATIO = 0.45;
+    let dragState = null;
+    let suppressClickUntil = 0;
+
+    function completedGroupOf(element) {
+      const group = element.closest('.csb-group');
+      if (group === null) return null;
+      const head = group.querySelector('.csb-group-head[data-csb-toggle="completed"]');
+      return head === null ? null : group;
+    }
+
+    function onStripPointerDown(event) {
+      if (clearAnimating) return;
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      const target = event.target;
+      if (target.closest('[data-csb-dismiss]') !== null) return;
+      if (target.closest('[data-csb-clearproj]') !== null) return;
+      const row = target.closest('[data-csb-session]');
+      const project = target.closest('[data-csb-project]');
+      const el = row !== null ? row : project;
+      if (el === null) return;
+      const group = completedGroupOf(el);
+      if (group === null) return;
+      dragState = {
+        el: el,
+        row: row,
+        project: project !== null ? project : null,
+        group: group,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        dx: 0,
+        active: false,
+      };
+      try { el.setPointerCapture(event.pointerId); } catch (error) { }
+    }
+
+    function resetDragStyles(el) {
+      el.style.transform = '';
+      el.style.opacity = '';
+      el.style.zIndex = '';
+      el.style.position = '';
+      el.style.willChange = '';
+      el.style.userSelect = '';
+    }
+
+    function onStripPointerMove(event) {
+      if (dragState === null || event.pointerId !== dragState.pointerId) return;
+      const dx = event.clientX - dragState.startX;
+      const dy = event.clientY - dragState.startY;
+      if (!dragState.active) {
+        if (Math.abs(dx) < DRAG_START_PX) return;
+        if (Math.abs(dx) <= Math.abs(dy)) { dragState = null; return; }
+        dragState.active = true;
+        dragState.el.style.position = 'relative';
+        dragState.el.style.zIndex = '5';
+        dragState.el.style.willChange = 'transform, opacity';
+        dragState.el.style.userSelect = 'none';
+      }
+      if (dx <= 0) {
+        dragState.dx = 0;
+        dragState.el.style.transform = '';
+        dragState.el.style.opacity = '';
+        return;
+      }
+      dragState.dx = dx;
+      dragState.el.style.transform = 'translateX(' + dx + 'px)';
+      dragState.el.style.opacity = String(Math.max(0.15, 1 - dx / 420));
+    }
+
+    function finishDrag(event, cancelled) {
+      if (dragState === null || event.pointerId !== dragState.pointerId) return;
+      const state = dragState;
+      dragState = null;
+      if (!state.active) return; // tiny movement: leave the normal click alone
+      suppressClickUntil = performance.now() + 420;
+      const el = state.el;
+      const width = (el.getBoundingClientRect().width || 200);
+      const threshold = Math.max(120, width * DRAG_DELETE_RATIO);
+      const remove = !cancelled && state.dx > threshold;
+      if (!remove) {
+        try {
+          el.animate(
+            [
+              { transform: 'translateX(' + state.dx + 'px)', opacity: el.style.opacity || '1' },
+              { transform: 'translateX(0)', opacity: 1 },
+            ],
+            { duration: 180, easing: 'cubic-bezier(.3,.7,.4,1)' },
+          );
+        } catch (error) { }
+        resetDragStyles(el);
+        return;
+      }
+      if (state.project !== null) {
+        // Project row: slide it out, then clear its sessions with the staggered
+        // rightward sequence (sessions first, project last).
+        const name = state.project.getAttribute('data-csb-project');
+        try {
+          el.animate(
+            [
+              { transform: 'translateX(' + state.dx + 'px)', opacity: el.style.opacity || '1' },
+              { transform: 'translateX(96px)', opacity: 0 },
+            ],
+            { duration: 160, easing: 'ease-out', fill: 'forwards' },
+          );
+        } catch (error) { }
+        window.setTimeout(function () {
+          resetDragStyles(el);
+          animateCompletedClear(name);
+        }, 120);
+        return;
+      }
+      const id = state.row !== null ? state.row.getAttribute('data-csb-session') : null;
+      const targetX = width + 120;
+      let animation = null;
+      try {
+        animation = el.animate(
+          [
+            { transform: 'translateX(' + state.dx + 'px)', opacity: el.style.opacity || '1' },
+            { transform: 'translateX(' + targetX + 'px)', opacity: 0 },
+          ],
+          { duration: 200, easing: 'cubic-bezier(.3,.7,.4,1)', fill: 'forwards' },
+        );
+      } catch (error) { }
+      if (animation !== null) animation.onfinish = function () { if (id) dismissOne(id); };
+      else if (id) dismissOne(id);
+    }
+
+    /*
+     * Group / project expand-collapse uses the same accordion motion as the
+     * native workspace project rows: height + opacity, no leftover ghosts.
+     */
+    let accordionAnimating = false;
+
+    function afterPaint(callback) {
+      window.requestAnimationFrame(function () {
+        window.requestAnimationFrame(callback);
+      });
+    }
+
+    function accordionGroupEl(key) {
+      const head = document.querySelector('#' + STRIP_ID
+        + ' .csb-group-head[data-csb-toggle="' + key + '"]');
+      return head === null ? null : head.closest('.csb-group');
+    }
+
+    function accordionProjectEl(name) {
+      const heads = document.querySelectorAll('#' + STRIP_ID + ' .csb-proj-head');
+      for (const head of heads) {
+        if (head.getAttribute('data-csb-project') === name) return head.closest('.csb-proj');
+      }
+      return null;
+    }
+
+    function accordionSummaryEl(key) {
+      const buttons = document.querySelectorAll('#' + STRIP_ID + ' [data-csb-expand]');
+      for (const button of buttons) {
+        if (button.getAttribute('data-csb-expand') === key) return button.closest('.csb-summary-group');
+      }
+      return null;
+    }
+
+    function accordionContainer(section, project) {
+      if (section === null) return null;
+      return section.querySelector(project ? '.csb-proj-sessions' : '.csb-sessions');
+    }
+
+    function openAccordion(container) {
+      if (container === null || reduceMotion()) return;
+      accordionAnimating = true;
+      const height = container.scrollHeight;
+      container.style.overflow = 'hidden';
+      let animation;
+      try {
+        animation = container.animate(
+          [{ height: '0px', opacity: 0 }, { height: height + 'px', opacity: 1 }],
+          { duration: 200, easing: ANIM_EASE },
+        );
+      } catch (error) {
+        accordionAnimating = false;
+        container.style.overflow = '';
+        return;
+      }
+      animation.onfinish = function () {
+        container.style.overflow = '';
+        accordionAnimating = false;
+        renderStrip();
+      };
+    }
+
+    function closeAccordion(container, commit) {
+      if (container === null || reduceMotion()) { commit(); return; }
+      accordionAnimating = true;
+      const height = container.getBoundingClientRect().height;
+      container.style.overflow = 'hidden';
+      let animation;
+      try {
+        animation = container.animate(
+          [{ height: height + 'px', opacity: 1 }, { height: '0px', opacity: 0 }],
+          { duration: 170, easing: ANIM_EASE },
+        );
+      } catch (error) {
+        accordionAnimating = false;
+        commit();
+        return;
+      }
+      animation.onfinish = function () {
+        accordionAnimating = false;
+        commit();
+      };
+    }
+
     function onStripClick(event) {
+      if (performance.now() < suppressClickUntil) {
+        suppressClickUntil = 0;
+        return;
+      }
       const center = event.target.closest('[data-csb-center]');
       if (center !== null) {
         collapsed = false;
@@ -972,9 +1264,14 @@ window.__ModuleLoader__.load({
         markAllRead();
         return;
       }
+      const projectClear = event.target.closest('[data-csb-clearproj]');
+      if (projectClear !== null) {
+        animateCompletedClear(projectClear.getAttribute('data-csb-clearproj'));
+        return;
+      }
       const clear = event.target.closest('[data-csb-clear]');
       if (clear !== null) {
-        if (clear.getAttribute('data-csb-clear') === 'completed') clearCompleted();
+        if (clear.getAttribute('data-csb-clear') === 'completed') animateCompletedClear(null);
         return;
       }
       const dismiss = event.target.closest('[data-csb-dismiss]');
@@ -992,27 +1289,53 @@ window.__ModuleLoader__.load({
       if (expandRow !== null) {
         // In the collapsed digest a summary row expands its own projects and
         // sessions in place, without leaving the compact view.
-        toggleSummaryGroup(expandRow.getAttribute('data-csb-expand'));
+        const key = expandRow.getAttribute('data-csb-expand');
+        if (!key) return;
+        if (summaryOpen.has(key)) {
+          const container = accordionContainer(expandRow.closest('.csb-summary-group'), false);
+          closeAccordion(container, function () { toggleSummaryGroup(key); });
+        } else {
+          toggleSummaryGroup(key);
+          afterPaint(function () { openAccordion(accordionContainer(accordionSummaryEl(key), false)); });
+        }
         return;
       }
       const toggle = event.target.closest('[data-csb-toggle]');
       if (toggle !== null) {
         const key = toggle.getAttribute('data-csb-toggle');
         if (!key) return;
-        if (expanded.has(key)) expanded.delete(key);
-        else expanded.add(key);
-        saveExpanded();
-        renderStrip();
+        if (expanded.has(key)) {
+          const container = accordionContainer(toggle.closest('.csb-group'), false);
+          closeAccordion(container, function () {
+            expanded.delete(key);
+            saveExpanded();
+            renderStrip();
+          });
+        } else {
+          expanded.add(key);
+          saveExpanded();
+          renderStrip();
+          afterPaint(function () { openAccordion(accordionContainer(accordionGroupEl(key), false)); });
+        }
         return;
       }
       const project = event.target.closest('[data-csb-project]');
       if (project !== null) {
         const name = project.getAttribute('data-csb-project');
         if (!name) return;
-        if (collapsedProjects.has(name)) collapsedProjects.delete(name);
-        else collapsedProjects.add(name);
-        saveCollapsedProjects();
-        renderStrip();
+        if (collapsedProjects.has(name)) {
+          collapsedProjects.delete(name);
+          saveCollapsedProjects();
+          renderStrip();
+          afterPaint(function () { openAccordion(accordionContainer(accordionProjectEl(name), true)); });
+        } else {
+          const container = accordionContainer(project.closest('.csb-proj'), true);
+          closeAccordion(container, function () {
+            collapsedProjects.add(name);
+            saveCollapsedProjects();
+            renderStrip();
+          });
+        }
         return;
       }
       const row = event.target.closest('[data-csb-session]');
@@ -1033,6 +1356,10 @@ window.__ModuleLoader__.load({
       strip.id = STRIP_ID;
       strip.setAttribute('role', 'region');
       strip.addEventListener('click', onStripClick);
+      strip.addEventListener('pointerdown', onStripPointerDown);
+      strip.addEventListener('pointermove', onStripPointerMove);
+      strip.addEventListener('pointerup', function (event) { finishDrag(event, false); });
+      strip.addEventListener('pointercancel', function (event) { finishDrag(event, true); });
       host.insertBefore(strip, host.firstChild);
       return strip;
     }
@@ -1356,6 +1683,10 @@ ${STRIP_SELECTOR} .csb-group-readall:hover{color:var(--dsw-alias-label-primary);
 ${STRIP_SELECTOR} .csb-group-clear{display:none;align-items:center;justify-content:center;width:20px;height:20px;padding:0;margin-left:2px;flex:none;border:0;border-radius:var(--dsw-radius-xs,4px);background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer}
 ${STRIP_SELECTOR} .csb-group-head:hover .csb-group-clear{display:inline-flex}
 ${STRIP_SELECTOR} .csb-group-clear:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1))}
+${STRIP_SELECTOR} .csb-proj-clear{display:none;align-items:center;justify-content:center;width:20px;height:20px;padding:0;margin-left:auto;flex:none;border:0;border-radius:var(--dsw-radius-xs,4px);background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer}
+${STRIP_SELECTOR} .csb-proj-head:hover .csb-proj-clear{display:inline-flex}
+${STRIP_SELECTOR} .csb-proj-clear:hover{color:var(--dsw-alias-state-error-primary,#e06);background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1))}
+${STRIP_SELECTOR} .csb-session,${STRIP_SELECTOR} .csb-proj-head{touch-action:pan-y}
 ${STRIP_SELECTOR} .csb-session-del{display:none;align-items:center;justify-content:center;width:20px;height:20px;padding:0;margin-left:2px;flex:none;border:0;border-radius:var(--dsw-radius-xs,4px);background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer}
 ${STRIP_SELECTOR} .csb-session:hover .csb-session-del{display:inline-flex}
 ${STRIP_SELECTOR} .csb-session-del:hover{color:var(--dsw-alias-state-error-primary,#e06);background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1))}
@@ -1399,7 +1730,7 @@ ${STRIP_SELECTOR} .csb-session-empty:hover{background:transparent}
         }
       };
       syncLang();
-      ctx.effect(() => ctx.locale.subscribe(syncLang), 'dsh-pulse: locale');
+      ctx.effect(() => ctx.locale.subscribe(syncLang), 'claude-sidebar: locale');
       ctx.effect(
         () => () => {
           if (deferredRenderTimer) {
@@ -1411,7 +1742,7 @@ ${STRIP_SELECTOR} .csb-session-empty:hover{background:transparent}
           const style = document.getElementById(STYLE_ID);
           if (style) style.remove();
         },
-        'dsh-pulse: strip cleanup',
+        'claude-sidebar: strip cleanup',
       );
 
       ctx.slots.inject('sidebar.footer.action', () =>
