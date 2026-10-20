@@ -1,17 +1,17 @@
 <div align="center">
 
-<img src="docs/banner-status-motion.png" alt="Status Motion — a Claude-inspired status layer for the DeepSeek Harness sidebar" width="100%" />
+<img src="docs/banner-status-monitor.png" alt="Status Monitor — a live status layer for the DeepSeek Harness sidebar" width="100%" />
 
-# Status Motion
+# Status Monitor
 
-**给 DeepSeek Harness 侧边栏注入 Claude 的状态流。**
+**给 DeepSeek Harness 侧边栏注入实时状态流。**
 
 原生工作区树一行不动，状态表叠在它上面：谁在等你、谁在跑、谁刚完成——一眼到底。
 
 > 名字取自「侧边栏的脉搏」：会话状态像心率一样实时起伏，你随时知道系统还在跳。
 
 [![MIT](https://img.shields.io/badge/license-MIT-3fbf7f)](LICENSE)
-[![DSH](https://img.shields.io/badge/DeepSeek%20Harness-plugin-5b8def)](https://github.com/zhangyuzhangyu233/dsh-status-motion)
+[![DSH](https://img.shields.io/badge/DeepSeek%20Harness-plugin-5b8def)](https://github.com/zhangyuzhangyu233/dsh-status-monitor)
 [![no deps](https://img.shields.io/badge/dependencies-0-e2a33c)](#)
 
 </div>
@@ -23,16 +23,16 @@
 DSH 的侧边栏擅长回答「我的会话放在哪个项目」，
 但它不太回答「**现在**发生了什么」——哪个在等我批准、哪个在跑、哪个刚跑完我还没看。
 
-Claude 的桌面端把这件事做得很好：agent 列表按状态分组、运行中的会话带实时动静、完成的会话留一个未读标记。
-Status Motion 把**这套状态语言**移植到 DSH：不是替换原生列表，而是在原生列表上方加一层实时状态表，让「项目结构」和「任务状态」同时可见。
+一些现代 AI 客户端把这件事做得很好：agent 列表按状态分组、运行中的会话带实时动静、完成的会话留一个未读标记。
+Status Monitor 把**这套状态语言**移植到 DSH：不是替换原生列表，而是在原生列表上方加一层实时状态表，让「项目结构」和「任务状态」同时可见。
 
-![Status Motion 在 DSH 中的实际效果](docs/screenshots/overview.png)
+![Status Monitor 在 DSH 中的实际效果](docs/screenshots/overview.png)
 
 ## v0.5.0：清空动效 + 手风琴折叠
 
 - **清空已完成更有节奏**：整组清空时逐行向右滑出并淡出，**自下而上**进行（项目内从最后一个会话开始，项目行最后消失）；单项目清空则先会话、后项目；
 - **按住右滑删除**：在「已完成」通知行上按住向右拖动，超过 `max(120px, 45% 宽度)` 即滑出删除，未超过则平滑回弹；
-- **状态切换回到 Claude 式平滑平移**：会话行用 FLIP 从旧分组位置滑到新分组位置，没有右滑、没有重影；只有真正新出现的会话才有轻微淡入；
+- **状态切换回到 平滑平移**：会话行用 FLIP 从旧分组位置滑到新分组位置，没有右滑、没有重影；只有真正新出现的会话才有轻微淡入；
 - **折叠/展开改为手风琴**：分组、项目、折叠摘要统一使用和原生工作区项目一致的高度 + 透明度动画（展开 200ms / 折叠 170ms），并彻底移除了折叠时消失行的残留 ghost 动画。
 
 ## v0.4.1：子智能体会话归入「子智能体」
@@ -41,7 +41,7 @@ DSH 里由子智能体（subagent）创建的会话没有工作区归属，之�
 
 ## 最新更新 · v0.4.0：折叠摘要 + 完整通知中心
 
-- **折叠态 = Claude 式摘要**：只显示有内容的行（需要输入 / 待审查 / 正在工作 / 未读），0 计数自动隐藏；标题右侧显示未读总数；
+- **折叠态 = 紧凑摘要**：只显示有内容的行（需要输入 / 待审查 / 正在工作 / 未读），0 计数自动隐藏；标题右侧显示未读总数；
 - **摘要行可就地展开**：点任意摘要行，直接在该行下方展开项目 → 会话 → 运行步骤，再点收起；展开状态持久化；三角随展开/收起旋转；
 - **展开态 = 完整通知中心**：四组常驻并全部展开；已完成保留清空 / 单条删除；折叠态标题旁的铃铛图标可直接打开通知中心；
 - **未读语义统一**：已完成里未读项排最前、带蓝点加粗；「未读 N」在两个状态里是同一批会话；
@@ -60,7 +60,7 @@ DSH 里由子智能体（subagent）创建的会话没有工作区归属，之�
 ### 🧭 状态总表：叠在「工作区」上方，原生树不动
 
 ```
-状态                          ● 3  🔔  ⌄     ← 折叠态：Claude 式摘要
+状态                          ● 3  🔔  ⌄     ← 折叠态：紧凑摘要
   ▸ ● 需要输入                     2
   ▾ ● 正在工作                     1
       📁 dsh-coderipple
@@ -72,7 +72,7 @@ DSH 里由子智能体（subagent）创建的会话没有工作区归属，之�
   ▸ ...
 ```
 
-- 状态分组、展开/折叠、折叠摘要都按 Claude 的语义组织；
+- 状态分组、展开/折叠、折叠摘要都按状态语义组织；
 - 原生工作区分组、搜索、拖拽、置顶、归档、右键菜单**一行没改**；
 - 折叠总表时摘要行保留实时数字（正在工作 / 需要输入 / 未读），空分组自动隐藏箭头。
 
@@ -89,18 +89,18 @@ DSH 里由子智能体（subagent）创建的会话没有工作区归属，之�
 
 ### 🔔 两态设计：折叠摘要 ⇄ 展开通知中心
 
-**折叠态（默认紧凑视图）**：Claude 式摘要，只列有内容的分类，标题右侧是未读总数和通知中心入口（铃铛）。每行可以就地展开，查看该分类下的项目、会话与运行步骤。
+**折叠态（默认紧凑视图）**：紧凑摘要，只列有内容的分类，标题右侧是未读总数和通知中心入口（铃铛）。每行可以就地展开，查看该分类下的项目、会话与运行步骤。
 
 **展开态（通知中心）**：四组常驻并全部展开，已完成分组按未读优先排序：
 
 - 未读项带蓝点加粗，排在前面；打开会话后 DSH 原生清掉未读，自动移入历史；
 - 悬停「已完成」分组行：**✓ 全部标为已读**（保留历史）与 **🗑 清空已完成**（只清已读历史，未读保留）；
 - 悬停单条已完成会话：行尾 × 单独删除这条通知；
-- 计数实时跟随，状态写入 localStorage；只影响 Status Motion 的通知层，不删除或归档真实 DSH 会话。
+- 计数实时跟随，状态写入 localStorage；只影响 Status Monitor 的通知层，不删除或归档真实 DSH 会话。
 
 ### 🎞 丝滑的状态切换
 
-逆向自 Claude timeline 动画的运动参数，做了一套 FLIP 转场：
+参照现代客户端的 timeline 动画参数，做了一套 FLIP 转场：
 
 | 动作 | 动效 |
 |---|---|
@@ -113,7 +113,7 @@ DSH 里由子智能体（subagent）创建的会话没有工作区归属，之�
 
 ### 🎛 可控、可演示
 
-- 设置 → 通用里两个开关：**Claude 状态表**、**模拟状态数据（演示）**；
+- 设置 → 通用里两个开关：**Status Monitor 状态表**、**模拟状态数据（演示）**；
 - 演示模式用脚本数据循环播放全部状态、项目分栏、执行步骤，不需要真的跑任务；
 - 中英双语、明暗主题 token 自适应、侧栏折叠 rail 时自动隐藏。
 
@@ -131,17 +131,17 @@ install_bundle  target = <本仓库绝对路径>
 **方式 B（手工登记）**：
 
 1. 把本仓库克隆到任意位置；
-2. 在 profile 的 `node_modules` 下建软链指向仓库根目录（例如 `<profile>/node_modules/dsh-status-motion`）；
+2. 在 profile 的 `node_modules` 下建软链指向仓库根目录（例如 `<profile>/node_modules/dsh-status-monitor`）；
 3. 在 profile 的 `cordis.yml` 插件列表里加一条：
 
 ```yaml
-- id: dsh-status-motion
-  name: dsh-status-motion
+- id: dsh-status-monitor
+  name: dsh-status-monitor
 ```
 
-4. 重启 DSH，在插件面板确认 `Status Motion · 状态栏动效` 已启用。
+4. 重启 DSH，在插件面板确认 `Status Monitor · 状态栏动效` 已启用。
 
-安装后：设置 → 通用 → 打开「Claude 状态表」。想先看看效果，再打开「模拟状态数据（演示）」。
+安装后：设置 → 通用 → 打开「Status Monitor 状态表」。想先看看效果，再打开「模拟状态数据（演示）」。
 
 ## 设计来源（逆向笔记）
 
@@ -156,7 +156,7 @@ install_bundle  target = <本仓库绝对路径>
 
 | 路径 | 内容 |
 |---|---|
-| `package.json` / `client.js` / `index.js` | Status Motion 插件本体（零依赖） |
+| `package.json` / `client.js` / `index.js` | Status Monitor 插件本体（零依赖） |
 | `locale/` | 中文 / English 界面文案 |
 | `cordis.patch.yml` | Cordis 插件登记 |
 | `docs/` | 宣传横幅与效果截图 |
@@ -168,7 +168,7 @@ install_bundle  target = <本仓库绝对路径>
 ## 已知限制与路线图
 
 - `待审查（Ready for review）` 分组已预留：DSH 当前没有对应信号时计数为 0，但状态行会保留显示；
-- 已完成通知的「清空 / 删除」只作用于 Status Motion 的通知层，不会删除、归档或修改真实会话；「全部标为已读」是 Status Motion 的本地已读标记，不改动 DSH 的 `completionUnread`；
+- 已完成通知的「清空 / 删除」只作用于 Status Monitor 的通知层，不会删除、归档或修改真实会话；「全部标为已读」是 Status Monitor 的本地已读标记，不改动 DSH 的 `completionUnread`；
 - 「未读」的真实来源是 DSH 的 `completionUnread`（内存态），DSH 重启后未读会重置；
 - 执行步骤依赖会话的 `todo` 投影，未写清单的长任务只显示转圈（+ 子代理名兜底）；
 - 路线图：hover 卡片（最近活动/工作区）、右键菜单扩展（移动到工作区/分叉）、状态片段筛选。
@@ -179,4 +179,4 @@ install_bundle  target = <本仓库绝对路径>
 
 ---
 
-**English** — Status Motion is a Claude-inspired status layer for the DeepSeek Harness sidebar: a live state table (Needs input / Working / Unread / Completed) stacked above the untouched native workspace tree, expandable down to project tabs, sessions and their current run steps, with native-matching spinners, project folder icons, and FLIP state transitions. Collapsed, it shows a Claude-style digest whose rows expand in place to projects, sessions and live steps; expanded, it becomes a full notification center (unread-first ordering, mark-all-read, clear history, per-item dismiss), persisted locally without touching the real sessions. Zero dependencies, MIT licensed. Visual language and motion parameters are reverse-engineered for parity; no Anthropic or DeepSeek code/assets are included, and there is no affiliation.
+**English** — Status Monitor is a live status layer for the DeepSeek Harness sidebar: a live state table (Needs input / Working / Unread / Completed) stacked above the untouched native workspace tree, expandable down to project tabs, sessions and their current run steps, with native-matching spinners, project folder icons, and FLIP state transitions. Collapsed, it shows a compact digest whose rows expand in place to projects, sessions and live steps; expanded, it becomes a full notification center (unread-first ordering, mark-all-read, clear history, per-item dismiss), persisted locally without touching the real sessions. Zero dependencies, MIT licensed. Visual language and motion parameters are reverse-engineered for parity; no Anthropic or DeepSeek code/assets are included, and there is no affiliation.

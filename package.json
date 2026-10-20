@@ -1,7 +1,7 @@
 {
-  "name": "dsh-status-motion",
-  "version": "0.5.1",
-  "description": "Status Motion: a Claude-inspired live status layer for the DeepSeek Harness sidebar - a compact Claude-style digest when collapsed, a full notification center when expanded (unread ordering, mark-all-read, clear history, per-item dismiss), live run steps, native hover triangles and FLIP transitions, without replacing the native workspace tree.",
+  "name": "dsh-status-monitor",
+  "version": "0.5.2",
+  "description": "Status Monitor: a live status layer for the DeepSeek Harness sidebar - a compact digest when collapsed, a full notification center when expanded (unread ordering, mark-all-read, clear history, per-item dismiss), live run steps, native hover triangles and FLIP transitions, without replacing the native workspace tree.",
   "type": "module",
   "license": "MIT",
   "keywords": [
@@ -10,13 +10,12 @@
     "dsh-plugin",
     "sidebar",
     "session-status",
-    "claude",
-    "dsh-status-motion"
+        "dsh-status-monitor"
   ],
-  "homepage": "https://github.com/zhangyuzhangyu233/dsh-status-motion",
+  "homepage": "https://github.com/zhangyuzhangyu233/dsh-status-monitor",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zhangyuzhangyu233/dsh-status-motion.git"
+    "url": "git+https://github.com/zhangyuzhangyu233/dsh-status-monitor.git"
   },
   "exports": {
     ".": "./index.js",
