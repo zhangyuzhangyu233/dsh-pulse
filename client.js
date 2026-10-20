@@ -285,6 +285,44 @@ window.__ModuleLoader__.load({
       saveIdSet(READ_KEY, readIds);
       renderStrip();
     }
+    function unreadSummaryGroup() {
+      const button = document.querySelector('#' + STRIP_ID + ' [data-csb-expand="unread"]');
+      return button === null ? null : button.closest('.csb-summary-group');
+    }
+
+    function animateMarkAllRead() {
+      if (clearAnimating) return;
+      const group = unreadSummaryGroup();
+      if (group === null || reduceMotion()) { markAllRead(); return; }
+      const rows = Array.from(group.querySelectorAll('[data-csb-session]')).reverse();
+      const jobs = rows.map((el, index) => ({ el, delay: index * CLEAR_STAGGER_MS }));
+      jobs.push({ el: group, delay: rows.length * CLEAR_STAGGER_MS });
+      const lastDelay = rows.length * CLEAR_STAGGER_MS;
+      clearAnimating = true;
+      try { group.style.pointerEvents = 'none'; } catch (error) { }
+      for (const job of jobs) {
+        try {
+          job.el.animate(
+            [
+              { opacity: 1, transform: 'translateX(0)' },
+              { opacity: 0, transform: 'translateX(96px)' },
+            ],
+            {
+              duration: CLEAR_DURATION_MS,
+              delay: job.delay,
+              easing: 'cubic-bezier(.3,.7,.4,1)',
+              fill: 'forwards',
+            },
+          );
+        } catch (error) { }
+      }
+      window.setTimeout(function () {
+        clearAnimating = false;
+        try { group.style.pointerEvents = ''; } catch (error) { }
+        markAllRead();
+      }, lastDelay + CLEAR_DURATION_MS + 40);
+    }
+
     function toggleSummaryGroup(key) {
       if (!key) return;
       if (summaryOpen.has(key)) summaryOpen.delete(key);
@@ -560,12 +598,17 @@ window.__ModuleLoader__.load({
         const status = statuses && typeof statuses.get === 'function' ? statuses.get(id) : undefined;
         const bucket = bucketOf(status, session);
         const unread = !!(status && status.completionUnread === true);
-        counts[bucket] += 1;
-        if (bucket === 'completed' && unread) counts.justCompleted += 1;
-        const title = displayTitle(session, t.untitled);
         // DSH marks subagent sessions with origin === 'subagent'; forks keep a
         // parentId but stay workspace sessions, so origin is the reliable flag.
         const subagent = session.origin === 'subagent';
+        // Finished subagents are background work: they must not create unread
+        // notifications, so they never count towards completed/unread.
+        const hiddenCompletion = bucket === 'completed' && subagent;
+        if (!hiddenCompletion) {
+          counts[bucket] += 1;
+          if (bucket === 'completed' && unread) counts.justCompleted += 1;
+        }
+        const title = displayTitle(session, t.untitled);
         const project = projectOf.get(String(id)) || null;
         const entry = {
           id,
@@ -574,6 +617,7 @@ window.__ModuleLoader__.load({
           project: project || (subagent ? SUBAGENT_PROJECT : null),
           updatedAt: Number(session.updatedAt) || 0,
           steps: null,
+          subagent,
         };
         if (bucket === 'working') {
           entry.steps = stepsFor(id, projections, statuses);
@@ -887,7 +931,7 @@ window.__ModuleLoader__.load({
         const list = last.groups[key] || [];
         groups[key] = key === 'completed'
           ? list
-            .filter((session) => !dismissed.has(String(session.id)))
+            .filter((session) => !session.subagent && !dismissed.has(String(session.id)))
             .sort((a, b) => (isUnread(b) ? 1 : 0) - (isUnread(a) ? 1 : 0)
               || (Number(b.updatedAt) - Number(a.updatedAt)) || (a.id < b.id ? -1 : 1))
           : list;
@@ -1261,7 +1305,7 @@ window.__ModuleLoader__.load({
       }
       const readAll = event.target.closest('[data-csb-readall]');
       if (readAll !== null) {
-        markAllRead();
+        animateMarkAllRead();
         return;
       }
       const projectClear = event.target.closest('[data-csb-clearproj]');

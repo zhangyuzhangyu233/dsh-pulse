@@ -1,6 +1,6 @@
 {
   "name": "dsh-status-monitor",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Status Monitor: a live status layer for the DeepSeek Harness sidebar - a compact digest when collapsed, a full notification center when expanded (unread ordering, mark-all-read, clear history, per-item dismiss), live run steps, native hover triangles and FLIP transitions, without replacing the native workspace tree.",
   "type": "module",
   "license": "MIT",
