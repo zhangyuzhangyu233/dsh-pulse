@@ -742,6 +742,25 @@ window.__ModuleLoader__.load({
      * IconFolderOpenRegular, 16px, currentColor), so the status table reuses
      * exactly the same artwork as the native workspace list.
      */
+    /*
+     * Robot mark for the sub-agent group, drawn in the same 16px WinUI outline
+     * language as the shipped folder icons (currentColor, 1px stroke, a soft
+     * 16% fill behind the head).
+     */
+    function robotSvg() {
+      return '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none"'
+        + ' stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">'
+        + '<rect x="2.75" y="5" width="10.5" height="7.5" rx="2" fill="currentColor" opacity="0.16"/>'
+        + '<rect x="2.75" y="5" width="10.5" height="7.5" rx="2"/>'
+        + '<path d="M8 5V3.2"/>'
+        + '<circle cx="8" cy="2.4" r="0.9" fill="currentColor" stroke="none"/>'
+        + '<circle cx="5.75" cy="8.6" r="0.9" fill="currentColor" stroke="none"/>'
+        + '<circle cx="10.25" cy="8.6" r="0.9" fill="currentColor" stroke="none"/>'
+        + '<path d="M6.2 10.6h3.6"/>'
+        + '<path d="M1.9 7.6v2.2M14.1 7.6v2.2"/>'
+        + '</svg>';
+    }
+
     function folderSvg(open) {
       if (open) {
         return '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke-width="1">'
@@ -811,7 +830,7 @@ window.__ModuleLoader__.load({
         html += '<div class="csb-proj">'
           + '<button type="button" class="csb-proj-head" data-csb-project="' + escapeHtml(name) + '">'
           + '<span class="csb-proj-icon">'
-          + '<span class="csb-proj-folder">' + folderSvg(!isCollapsed) + '</span>'
+          + '<span class="csb-proj-folder">' + (key === SUBAGENT_PROJECT ? robotSvg() : folderSvg(!isCollapsed)) + '</span>'
           + '<span class="csb-proj-tri">' + triangleSvg(!isCollapsed) + '</span></span>'
           + '<span class="csb-proj-name">' + escapeHtml(name) + '</span>'
           + (groupKey === 'completed'
